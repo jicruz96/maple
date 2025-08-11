@@ -27,8 +27,9 @@ import { TestimoniesTab } from "./TestimoniesTab"
 import { useFlags } from "components/featureFlags"
 import LoginPage from "components/Login/login"
 import { PendingUpgradeBanner } from "components/PendingUpgradeBanner"
+import { FollowersTab } from "./FollowersTab"
 
-const tabTitle = ["about-you", "testimonies", "following"] as const
+const tabTitle = ["about-you", "testimonies", "following", "followers"] as const
 export type TabTitles = (typeof tabTitle)[number]
 
 export default function EditProfile({
@@ -145,6 +146,11 @@ export function EditProfileForm({
       title: t("tabs.following"),
       eventKey: "following",
       content: <FollowingTab className="mt-3 mb-4" />
+    },
+    {
+      title: t("followersWithCount", { count: 1 }),
+      eventKey: "followers",
+      content: <FollowersTab className="mt-3 mb-4" />
     }
   ]
 

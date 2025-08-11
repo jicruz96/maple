@@ -8,6 +8,7 @@
   "enabled": "Enabled",
   "disable": "Disable",
   "disabled": "Disabled",
+  "followersWithCount": "Followers ({{count}})",
   "viewMyProfile": "View My Profile",
   "viewOrgProfile": "View My Organization",
   "saveChanges": "Save Personal Information",
@@ -38,7 +39,7 @@
     "weekly": "Weekly",
     "monthly": "Monthly"
   },
-  "emailIconAlt":"open envelope with letter, toggles update frequency options",
+  "emailIconAlt": "open envelope with letter, toggles update frequency options",
   "legislator": {
     "representative": "Representative",
     "searchRepresentative": "Search your representative",
