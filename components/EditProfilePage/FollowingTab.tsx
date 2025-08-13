@@ -4,7 +4,7 @@ import { useAuth } from "../auth"
 import { firestore } from "../firebase"
 import {
   BillItem,
-  buildFollowableItemsCard,
+  createFollowableItemsCard,
   UsersCard,
   UserItem,
   FollowableItemsCard
@@ -16,24 +16,22 @@ import { FollowBillButton } from "components/shared/FollowButton"
 import { useTranslation } from "next-i18next"
 
 export const BillsCard: FollowableItemsCard<BillItem> =
-  buildFollowableItemsCard<BillItem>({
-    itemBuilder: props => {
-      const { court, billId } = props
-      const { loading, result: bill } = useBill(court, billId)
-      return {
-        loading,
-        followButton: <FollowBillButton confirmUnfollow={true} {...props} />,
-        content: (
-          <>
-            <Internal href={`/bills/${court}/${billId}`}>
-              {formatBillId(billId)}
-            </Internal>
-            <div className="ms-3">
-              <h6>{bill?.content.Title}</h6>
-            </div>
-          </>
-        )
-      }
+  createFollowableItemsCard<BillItem>(item => {
+    const { court, billId } = item
+    const { loading, result: bill } = useBill(court, billId)
+    return {
+      loading,
+      followButton: <FollowBillButton confirmUnfollow={true} {...item} />,
+      content: (
+        <>
+          <Internal href={`/bills/${court}/${billId}`}>
+            {formatBillId(billId)}
+          </Internal>
+          <div className="ms-3">
+            <h6>{bill?.content.Title}</h6>
+          </div>
+        </>
+      )
     }
   })
 

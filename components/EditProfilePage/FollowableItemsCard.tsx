@@ -23,14 +23,17 @@ export type FollowableItemsCard<Item> = React.FC<{
   subtitle?: string
   items: (Item & BaseFollowButtonProps)[]
 }>
+type FollowableItemProps = {
+  loading: boolean
+  followButton: JSX.Element
+  content: JSX.Element
+}
 
-export function buildFollowableItemsCard<Item>({
-  itemBuilder
-}: {
-  itemBuilder: (
-    props: Item & BaseFollowButtonProps
-  ) => React.ComponentProps<typeof FollowableItem>
-}): FollowableItemsCard<Item> {
+export function createFollowableItemsCard<Item>(
+  toFollowableItemProps: (
+    item: Item & BaseFollowButtonProps
+  ) => FollowableItemProps
+): FollowableItemsCard<Item> {
   return ({ items, className, title, subtitle }) => (
     <TitledSectionCard className={className}>
       <div className={`mx-4 mt-3 d-flex flex-column gap-3`}>
@@ -38,7 +41,7 @@ export function buildFollowableItemsCard<Item>({
           <h2>{title}</h2>
           {subtitle ? <p className="mt-0 text-muted">{subtitle}</p> : null}
           <div className="mt-3">
-            {items.map(itemBuilder).map(FollowableItem)}
+            {items.map(toFollowableItemProps).map(FollowableItem)}
           </div>
         </Stack>
       </div>
@@ -50,11 +53,7 @@ function FollowableItem({
   loading,
   followButton,
   content
-}: {
-  loading: boolean
-  followButton: JSX.Element
-  content: JSX.Element
-}) {
+}: FollowableItemProps) {
   if (loading) {
     return <Spinner animation="border" className="mx-auto" />
   }
@@ -77,29 +76,27 @@ function FollowableItem({
 }
 
 export const UsersCard: FollowableItemsCard<UserItem> =
-  buildFollowableItemsCard<UserItem>({
-    itemBuilder: props => {
-      const { profileId } = props
-      const { result: profile, loading } = usePublicProfile(profileId)
-      const { profileImage, fullName } = profile || {}
-      return {
-        loading,
-        content: (
-          <>
-            <OrgIconSmall
-              className="mr-4 mt-0 mb-0 ms-0"
-              profileImage={profileImage}
-            />
-            <Internal href={`/profile?id=${profileId}`}>{fullName}</Internal>
-          </>
-        ),
-        followButton: (
-          <FollowUserButton
-            fullName={fullName}
-            confirmUnfollow={true}
-            {...props}
+  createFollowableItemsCard<UserItem>(item => {
+    const { profileId } = item
+    const { result: profile, loading } = usePublicProfile(profileId)
+    const { profileImage, fullName } = profile || {}
+    return {
+      loading,
+      content: (
+        <>
+          <OrgIconSmall
+            className="mr-4 mt-0 mb-0 ms-0"
+            profileImage={profileImage}
           />
-        )
-      }
+          <Internal href={`/profile?id=${profileId}`}>{fullName}</Internal>
+        </>
+      ),
+      followButton: (
+        <FollowUserButton
+          fullName={fullName}
+          confirmUnfollow={true}
+          {...item}
+        />
+      )
     }
   })
