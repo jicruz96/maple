@@ -7,7 +7,7 @@ import type {
 import { useTranslation } from "next-i18next"
 import { Dispatch, SetStateAction, useEffect, useState } from "react"
 import { useAuth } from "../auth"
-import { FollowableItemsCard, UsersCard } from "./FollowableItemsCard"
+import { UsersCard } from "./FollowableItemsCard"
 
 export const getFollowers = httpsCallable<
   GetFollowersRequest,
@@ -22,17 +22,17 @@ export const FollowersTab = ({
   setFollowerCount: Dispatch<SetStateAction<number | null>>
 }) => {
   const uid = useAuth().user?.uid
-  const [followers, setFollowers] = useState<string[]>([])
+  const [followerIds, setFollowerIds] = useState<string[]>([])
   const { t } = useTranslation("editProfile")
 
   useEffect(() => {
     const fetchFollowers = async (uid: string) => {
       try {
         const response = await getFollowers({ uid })
-        setFollowers(response.data)
+        setFollowerIds(response.data)
         setFollowerCount(response.data.length)
       } catch (err) {
-        console.error("Error fetching followers", err)
+        console.error("Error fetching followerIds", err)
         return
       }
     }
@@ -44,7 +44,7 @@ export const FollowersTab = ({
       className={className}
       title={t("follow.your_followers")}
       subtitle={t("follow.private_follower_info_disclaimer")}
-      items={followers.map(profileId => ({ profileId }))}
+      items={followerIds.map(profileId => ({ profileId }))}
     />
   )
 }

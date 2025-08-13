@@ -14,22 +14,24 @@ import { Internal } from "components/links"
 import { FollowBillButton } from "components/shared/FollowButton"
 import { useTranslation } from "next-i18next"
 
-export const BillsCard = buildFollowableItemsCard<BillItem>(props => {
-  const { court, billId } = props
-  const { loading, result: bill } = useBill(court, billId)
-  return {
-    loading,
-    followButton: <FollowBillButton confirmUnfollow={true} {...props} />,
-    content: (
-      <>
-        <Internal href={`/bills/${court}/${billId}`}>
-          {formatBillId(billId)}
-        </Internal>
-        <div className="ms-3">
-          <h6>{bill?.content.Title}</h6>
-        </div>
-      </>
-    )
+export const BillsCard = buildFollowableItemsCard<BillItem>({
+  itemBuilder: props => {
+    const { court, billId } = props
+    const { loading, result: bill } = useBill(court, billId)
+    return {
+      loading,
+      followButton: <FollowBillButton confirmUnfollow={true} {...props} />,
+      content: (
+        <>
+          <Internal href={`/bills/${court}/${billId}`}>
+            {formatBillId(billId)}
+          </Internal>
+          <div className="ms-3">
+            <h6>{bill?.content.Title}</h6>
+          </div>
+        </>
+      )
+    }
   }
 })
 
