@@ -30,7 +30,7 @@
     "your_followers": "Your Followers",
     "unfollow": "Unfollow",
     "follow": "Follow",
-    "private_follower_info_disclaimer": "Names and follower counts are not publicly available; only visible to you."
+    "follower_info_disclaimer": "Names and follower counts are not publicly available; only visible to you."
   },
   "email": {
     "frequencyQuery": "How often would you like to receive emails?",

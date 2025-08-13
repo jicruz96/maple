@@ -31,20 +31,19 @@ export function buildFollowableItemsCard<Item>({
     props: Item & BaseFollowButtonProps
   ) => React.ComponentProps<typeof FollowableItem>
 }): FollowableItemsCard<Item> {
-  return ({ items, className, title, subtitle }) => {
-    const children = items.map(itemBuilder).map(FollowableItem)
-    return (
-      <TitledSectionCard className={className}>
-        <div className={`mx-4 mt-3 d-flex flex-column gap-3`}>
-          <Stack>
-            <h2>{title}</h2>
-            {subtitle ? <p className="mt-0 text-muted">{subtitle}</p> : null}
-            <div className="mt-3">{children}</div>
-          </Stack>
-        </div>
-      </TitledSectionCard>
-    )
-  }
+  return ({ items, className, title, subtitle }) => (
+    <TitledSectionCard className={className}>
+      <div className={`mx-4 mt-3 d-flex flex-column gap-3`}>
+        <Stack>
+          <h2>{title}</h2>
+          {subtitle ? <p className="mt-0 text-muted">{subtitle}</p> : null}
+          <div className="mt-3">
+            {items.map(itemBuilder).map(FollowableItem)}
+          </div>
+        </Stack>
+      </div>
+    </TitledSectionCard>
+  )
 }
 
 function FollowableItem({
@@ -77,29 +76,30 @@ function FollowableItem({
   )
 }
 
-export const UsersCard = buildFollowableItemsCard<UserItem>({
-  itemBuilder: props => {
-    const { profileId } = props
-    const { result: profile, loading } = usePublicProfile(profileId)
-    const { profileImage, fullName } = profile || {}
-    return {
-      loading,
-      content: (
-        <>
-          <OrgIconSmall
-            className="mr-4 mt-0 mb-0 ms-0"
-            profileImage={profileImage}
+export const UsersCard: FollowableItemsCard<UserItem> =
+  buildFollowableItemsCard<UserItem>({
+    itemBuilder: props => {
+      const { profileId } = props
+      const { result: profile, loading } = usePublicProfile(profileId)
+      const { profileImage, fullName } = profile || {}
+      return {
+        loading,
+        content: (
+          <>
+            <OrgIconSmall
+              className="mr-4 mt-0 mb-0 ms-0"
+              profileImage={profileImage}
+            />
+            <Internal href={`/profile?id=${profileId}`}>{fullName}</Internal>
+          </>
+        ),
+        followButton: (
+          <FollowUserButton
+            fullName={fullName}
+            confirmUnfollow={true}
+            {...props}
           />
-          <Internal href={`/profile?id=${profileId}`}>{fullName}</Internal>
-        </>
-      ),
-      followButton: (
-        <FollowUserButton
-          fullName={fullName}
-          confirmUnfollow={true}
-          {...props}
-        />
-      )
+        )
+      }
     }
-  }
-})
+  })

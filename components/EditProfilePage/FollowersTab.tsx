@@ -43,7 +43,7 @@ export const FollowersTab = ({
     <UsersCard
       className={className}
       title={t("follow.your_followers")}
-      subtitle={t("follow.private_follower_info_disclaimer")}
+      subtitle={t("follow.follower_info_disclaimer")}
       items={followerIds.map(profileId => ({ profileId }))}
     />
   )
