@@ -15,7 +15,7 @@ import { TestimonyDetail } from "./TestimonyDetail"
 import { VersionBanner } from "./TestimonyVersionBanner"
 import { useAuth } from "components/auth"
 import { useMediaQuery } from "usehooks-ts"
-import { setFollow, setUnfollow } from "components/shared/FollowingQueries"
+import { followTopic, unfollowTopic } from "components/shared/FollowingQueries"
 
 export const TestimonyDetailPage: FC<React.PropsWithChildren<unknown>> = () => {
   const [isReporting, setIsReporting] = useState(false)
@@ -31,11 +31,16 @@ export const TestimonyDetailPage: FC<React.PropsWithChildren<unknown>> = () => {
   }
   const { t } = useTranslation("testimony", { keyPrefix: "reportModal" })
   const uid = user?.uid
-  const { id: billId, court: courtId } = bill
-  const topicName = `bill-${courtId}-${billId}`
+  const { id: billId, court } = bill
+  const topicName = `bill-${court}-${billId}`
   const followAction = () =>
-    setFollow(uid, topicName, bill, billId, courtId, undefined)
-  const unfollowAction = () => setUnfollow(uid, topicName)
+    followTopic({
+      type: "bill",
+      uid,
+      topicName,
+      data: { billLookup: { billId, court } }
+    })
+  const unfollowAction = () => unfollowTopic(uid, topicName)
 
   return (
     <>

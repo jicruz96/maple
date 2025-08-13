@@ -1,102 +1,50 @@
+import { functions } from "components/firebase"
+import { httpsCallable } from "firebase/functions"
+import type {
+  GetFollowersRequest,
+  GetFollowersResponse
+} from "functions/src/subscriptions/getFollowers"
 import { useTranslation } from "next-i18next"
-import { useEffect, useMemo, useState } from "react"
+import { Dispatch, SetStateAction, useEffect, useState } from "react"
 import { useAuth } from "../auth"
-import { Stack } from "../bootstrap"
-import { firestore } from "../firebase"
-import {
-  collection,
-  collectionGroup,
-  getDocs,
-  query,
-  where,
-  addDoc
-} from "firebase/firestore"
-import { FollowedItem, UserElement } from "./FollowingTabComponents"
-import { UnfollowModalConfig } from "./UnfollowModal"
+import { FollowableItemsCard, FollowableUsersCard } from "./FollowableItemsCard"
 
-export const FollowersTab = ({ className }: { className?: string }) => {
-  const { user } = useAuth()
-  const uid = user?.uid
+export const getFollowers = httpsCallable<
+  GetFollowersRequest,
+  GetFollowersResponse
+>(functions, "getFollowers")
 
-  // NEW: build a query over the collection group
-  const followersQuery = useMemo(
-    () =>
-      uid
-        ? query(
-            collectionGroup(firestore, "activeTopicSubscriptions"),
-            where("uid", "==", uid), // they follow *me*
-            where("type", "==", "testimony") // user-to-user follows only
-          )
-        : null,
-    [uid]
-  )
-
-  // query for people *I* follow so we can decide button state
-  const myFollowsQuery = useMemo(
-    () =>
-      uid
-        ? query(
-            collection(firestore, `/users/${uid}/activeTopicSubscriptions/`),
-            where("uid", "==", uid),
-            where("type", "==", "testimony")
-          )
-        : null,
-    [uid]
-  )
-  const [iFollowSet, setIFollowSet] = useState<Set<string>>(new Set())
-
-  const [followers, setFollowers] = useState<UserElement[]>([])
-
-  useEffect(() => {
-    if (!followersQuery) return
-    ;(async () => {
-      const qs = await getDocs(followersQuery)
-      const list: UserElement[] = []
-      qs.forEach(doc => list.push(doc.data().userLookup)) // same field used elsewhere
-      setFollowers(list)
-    })()
-  }, [followersQuery])
-
-  useEffect(() => {
-    if (!myFollowsQuery) return
-    ;(async () => {
-      const qs = await getDocs(myFollowsQuery)
-      const ids = new Set<string>()
-      qs.forEach(doc => ids.add(doc.data().userLookup.uid))
-      setIFollowSet(ids)
-    })()
-  }, [myFollowsQuery])
-
-  const [unfollow, setUnfollow] = useState<UnfollowModalConfig | null>(null)
-
+export const FollowersTab = ({
+  className,
+  setFollowerCount
+}: {
+  className?: string
+  setFollowerCount: Dispatch<SetStateAction<number | null>>
+}) => {
+  const uid = useAuth().user?.uid
+  const [followers, setFollowers] = useState<string[]>([])
   const { t } = useTranslation("editProfile")
 
+  useEffect(() => {
+    const fetchFollowers = async (uid: string) => {
+      try {
+        const response = await getFollowers({ uid })
+        setFollowers(response.data)
+        setFollowerCount(response.data.length)
+      } catch (err) {
+        console.error("Error fetching followers", err)
+        return
+      }
+    }
+    if (uid) fetchFollowers(uid)
+  }, [uid])
+
   return (
-    <Stack>
-      <h2 className={className ? `pb-3 ${className}` : "pb-3"}>
-        {t("follow.orgs")}
-      </h2>
-      {followers.map(element => (
-        <FollowedItem
-          key={element.profileId}
-          element={element}
-          alreadyFollowing={iFollowSet.has(element.profileId)}
-          setFollow={async (targetUid: string) => {
-            if (!uid || iFollowSet.has(targetUid)) return
-            await addDoc(
-              collection(firestore, `/users/${uid}/activeTopicSubscriptions/`),
-              {
-                uid,
-                type: "testimony",
-                userLookup: { uid: targetUid }
-              }
-            )
-            setIFollowSet(new Set([...iFollowSet, targetUid]))
-          }}
-          setUnfollow={setUnfollow}
-          type="org"
-        />
-      ))}
-    </Stack>
+    <FollowableUsersCard
+      className={className}
+      title={t("follow.your_followers")}
+      subtitle={t("follow.private_follower_info_disclaimer")}
+      items={followers.map(profileId => ({ profileId }))}
+    />
   )
 }

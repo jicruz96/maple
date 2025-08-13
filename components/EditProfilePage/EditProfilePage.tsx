@@ -116,6 +116,7 @@ export function EditProfileForm({
   isOrg = isOrg || isPendingUpgrade
 
   const { t } = useTranslation("editProfile")
+  const [followerCount, setFollowerCount] = useState<number | null>(null)
 
   const tabs = [
     {
@@ -148,9 +149,16 @@ export function EditProfileForm({
       content: <FollowingTab className="mt-3 mb-4" />
     },
     {
-      title: t("followersWithCount", { count: 1 }),
+      title: followerCount
+        ? t("tabs.followersWithCount", { count: followerCount })
+        : t("tabs.followers"),
       eventKey: "followers",
-      content: <FollowersTab className="mt-3 mb-4" />
+      content: (
+        <FollowersTab
+          className="mt-3 mb-4"
+          setFollowerCount={setFollowerCount}
+        />
+      )
     }
   ]
 
@@ -178,9 +186,7 @@ export function EditProfileForm({
         >
           <TabNavWrapper>
             {tabs.map((t, i) => (
-              <>
-                <TabNavItem tab={t} i={i} />
-              </>
+              <TabNavItem key={i} tab={t} i={i} />
             ))}
           </TabNavWrapper>
           <StyledTabContent>

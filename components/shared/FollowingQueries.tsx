@@ -7,35 +7,12 @@ import {
   setDoc,
   where
 } from "firebase/firestore"
-import { Bill } from "../db"
 import { firestore } from "../firebase"
-import { UnfollowModalConfig } from "components/EditProfilePage/UnfollowModal"
 
 export type Results = { [key: string]: string[] }
 
 function setSubscriptionRef(uid: string | undefined) {
   return collection(firestore, `/users/${uid}/activeTopicSubscriptions/`)
-}
-
-export async function deleteItem({
-  uid,
-  unfollowItem
-}: {
-  uid: string | undefined
-  unfollowItem: UnfollowModalConfig | null
-}) {
-  const subscriptionRef = setSubscriptionRef(uid)
-
-  if (unfollowItem !== null) {
-    let topicName = ""
-    if (unfollowItem.type == "bill") {
-      topicName = `bill-${unfollowItem.court.toString()}-${unfollowItem.typeId}`
-    } else {
-      topicName = `testimony-${unfollowItem.typeId}`
-    }
-
-    await deleteDoc(doc(subscriptionRef, topicName))
-  }
 }
 
 export async function FollowingQuery(uid: string | undefined) {
@@ -71,37 +48,32 @@ export async function FollowingQuery(uid: string | undefined) {
   return results
 }
 
-export async function setFollow(
-  uid: string | undefined,
-  topicName: string,
-  bill: Bill | undefined,
-  billId: string | undefined,
-  courtId: number | undefined,
-  profileId: string | undefined
-) {
-  const subscriptionRef = setSubscriptionRef(uid)
+type FollowableTopics = "bill" | "testimony"
+interface IFollowTopicData<TopicType extends FollowableTopics, TopicData> {
+  uid?: string
+  topicName: string
+  type: TopicType
+  data: TopicData
+}
+type FollowProfileData = IFollowTopicData<
+  "testimony",
+  { userLookup: { profileId: string } }
+>
+type FollowBillData = IFollowTopicData<
+  "bill",
+  { billLookup: { billId: string; court: number } }
+>
+type FollowTopicData = FollowBillData | FollowProfileData
 
-  bill
-    ? await setDoc(doc(subscriptionRef, topicName), {
-        topicName: topicName,
-        uid: uid,
-        billLookup: {
-          billId: billId,
-          court: courtId
-        },
-        type: "bill"
-      })
-    : await setDoc(doc(subscriptionRef, topicName), {
-        topicName: topicName,
-        uid: uid,
-        userLookup: {
-          profileId: profileId
-        },
-        type: "testimony"
-      })
+export const followTopic = async ({ data, ...props }: FollowTopicData) => {
+  const subscriptionRef = setSubscriptionRef(props.uid)
+  await setDoc(doc(subscriptionRef, props.topicName), { ...props, ...data })
 }
 
-export async function setUnfollow(uid: string | undefined, topicName: string) {
+export async function unfollowTopic(
+  uid: string | undefined,
+  topicName: string
+) {
   const subscriptionRef = setSubscriptionRef(uid)
 
   await deleteDoc(doc(subscriptionRef, topicName))
