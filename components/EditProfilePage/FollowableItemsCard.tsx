@@ -2,21 +2,14 @@ import { usePublicProfile } from "components/db"
 import { Internal } from "components/links"
 import {
   BaseFollowButtonProps,
-  FollowUserButton
+  FollowUserButton,
+  UserItem
 } from "components/shared/FollowButton"
 import React from "react"
 import { Col, Row, Spinner, Stack } from "../bootstrap"
 import { TitledSectionCard } from "../shared"
 import { OrgIconSmall } from "./StyledEditProfileComponents"
 
-export type BillItem = {
-  court: number
-  billId: string
-}
-export type UserItem = {
-  profileId: string
-  fullName?: string
-}
 export type FollowableItemsCard<Item> = React.FC<{
   className?: string
   title: string

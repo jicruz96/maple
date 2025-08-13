@@ -3,16 +3,18 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAuth } from "../auth"
 import { firestore } from "../firebase"
 import {
-  BillItem,
   createFollowableItemsCard,
   UsersCard,
-  UserItem,
   FollowableItemsCard
 } from "./FollowableItemsCard"
 import { useBill } from "components/db"
 import { formatBillId } from "components/formatting"
 import { Internal } from "components/links"
-import { FollowBillButton } from "components/shared/FollowButton"
+import {
+  BillItem,
+  FollowBillButton,
+  UserItem
+} from "components/shared/FollowButton"
 import { useTranslation } from "next-i18next"
 
 export const BillsCard: FollowableItemsCard<BillItem> =
