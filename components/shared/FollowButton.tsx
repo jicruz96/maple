@@ -8,11 +8,15 @@ import { Modal } from "../bootstrap"
 import { FillButton, OutlineButton } from "components/buttons"
 import { formatBillId } from "components/formatting"
 import { useAuth } from "components/auth"
-import {
-  BillItem,
-  UserItem
-} from "components/EditProfilePage/FollowableItemsCard"
 
+export type BillItem = {
+  court: number
+  billId: string
+}
+export type UserItem = {
+  profileId: string
+  fullName?: string
+}
 export interface BaseFollowButtonProps {
   onFollow?: () => Promise<void>
   onUnfollow?: () => Promise<void>
