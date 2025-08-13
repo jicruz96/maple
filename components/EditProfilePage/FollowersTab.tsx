@@ -7,7 +7,7 @@ import type {
 import { useTranslation } from "next-i18next"
 import { Dispatch, SetStateAction, useEffect, useState } from "react"
 import { useAuth } from "../auth"
-import { FollowableItemsCard, FollowableUsersCard } from "./FollowableItemsCard"
+import { FollowableItemsCard, UsersCard } from "./FollowableItemsCard"
 
 export const getFollowers = httpsCallable<
   GetFollowersRequest,
@@ -40,7 +40,7 @@ export const FollowersTab = ({
   }, [uid])
 
   return (
-    <FollowableUsersCard
+    <UsersCard
       className={className}
       title={t("follow.your_followers")}
       subtitle={t("follow.private_follower_info_disclaimer")}

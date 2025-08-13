@@ -5,7 +5,7 @@ import { firestore } from "../firebase"
 import {
   BillItem,
   buildFollowableItemsCard,
-  FollowableUsersCard,
+  UsersCard,
   UserItem
 } from "./FollowableItemsCard"
 import { useBill } from "components/db"
@@ -14,7 +14,7 @@ import { Internal } from "components/links"
 import { FollowBillButton } from "components/shared/FollowButton"
 import { useTranslation } from "next-i18next"
 
-export const FollowableBillsCard = buildFollowableItemsCard<BillItem>(props => {
+export const BillsCard = buildFollowableItemsCard<BillItem>(props => {
   const { court, billId } = props
   const { loading, result: bill } = useBill(court, billId)
   return {
@@ -104,7 +104,7 @@ export function FollowingTab({ className }: { className?: string }) {
 
   return (
     <>
-      <FollowableBillsCard
+      <BillsCard
         className={className}
         title={t("follow.bills")}
         items={billsFollowing.map(bill => ({
@@ -112,7 +112,7 @@ export function FollowingTab({ className }: { className?: string }) {
           onUnfollow: async () => setBillsFollowing([])
         }))}
       />
-      <FollowableUsersCard
+      <UsersCard
         className={className}
         title={t("follow.orgs")}
         items={usersFollowing.map(user => ({

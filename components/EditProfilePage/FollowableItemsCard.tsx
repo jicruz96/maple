@@ -75,7 +75,7 @@ function FollowableItem({
   )
 }
 
-export const FollowableUsersCard = buildFollowableItemsCard<UserItem>(props => {
+export const UsersCard = buildFollowableItemsCard<UserItem>(props => {
   const { profileId } = props
   const { result: profile, loading } = usePublicProfile(profileId)
   const { profileImage, fullName } = profile || {}
