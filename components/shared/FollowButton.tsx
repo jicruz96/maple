@@ -1,28 +1,93 @@
 import { StyledImage } from "components/ProfilePage/StyledProfileComponents"
 import { useTranslation } from "next-i18next"
-import { useEffect, useContext } from "react"
+import { useEffect, useContext, useState } from "react"
 import { Button } from "react-bootstrap"
-import { useAuth } from "../auth"
-import { Bill } from "../db"
-import { TopicQuery, setFollow, setUnfollow } from "./FollowingQueries"
+import { TopicQuery, followTopic, unfollowTopic } from "./FollowingQueries"
 import { FollowContext } from "./FollowContext"
+import { Modal } from "../bootstrap"
+import { FillButton, OutlineButton } from "components/buttons"
+import { formatBillId } from "components/formatting"
+import { useAuth } from "components/auth"
+
+export type BillItem = {
+  court: number
+  billId: string
+}
+export type UserItem = {
+  profileId: string
+  fullName?: string
+}
+export type FollowButtonProps<Item = {}> = Item & {
+  onFollow?: () => Promise<void>
+  onUnfollow?: () => Promise<void>
+  confirmFollow?: boolean
+  confirmUnfollow?: boolean
+  hide?: boolean
+}
+const ConfirmFollowToggleModal = ({
+  show,
+  displayName,
+  onConfirm,
+  onDeny,
+  action
+}: {
+  show: boolean
+  displayName: string
+  onConfirm: () => Promise<void>
+  onDeny: () => Promise<void>
+  action: "follow" | "unfollow"
+}) => {
+  const { t } = useTranslation("common")
+  return (
+    <Modal
+      show={show}
+      onHide={onDeny}
+      aria-labelledby={`${action}-modal`}
+      centered
+    >
+      <Modal.Header closeButton>
+        <Modal.Title id={`${action}-modal`}>
+          {t(`button.follow.${action}`)}
+        </Modal.Title>
+      </Modal.Header>
+      <Modal.Body className={`ms-auto me-auto p-3 `}>
+        <div className={`d-flex flex-wrap text-center px-5`}>
+          {t("button.follow.confirmation_modal.message", {
+            action,
+            name: displayName
+          })}
+        </div>
+        <div className={`d-flex gap-3 px-2 col-6 mt-4 mr-4`}>
+          <OutlineButton
+            className={`col-3 ms-auto`}
+            onClick={onDeny}
+            label={t("button.follow.confirmation_modal.no")}
+          />
+          <FillButton
+            className={`col-3 me-auto`}
+            onClick={onConfirm}
+            label={t("button.follow.confirmation_modal.yes")}
+          />
+        </div>
+      </Modal.Body>
+    </Modal>
+  )
+}
 
 export const BaseFollowButton = ({
   topicName,
-  followAction,
-  unfollowAction,
+  displayName,
+  onFollow,
+  onUnfollow,
+  confirmFollow,
+  confirmUnfollow,
   hide
-}: {
+}: FollowButtonProps & {
   topicName: string
-  followAction: () => Promise<void>
-  unfollowAction: () => Promise<void>
-  hide?: boolean
+  displayName: string
 }) => {
-  const { t } = useTranslation(["profile"])
-
-  const { user } = useAuth()
-  const uid = user?.uid
-
+  const { t } = useTranslation("common")
+  const uid = useAuth().user?.uid
   const { followStatus, setFollowStatus } = useContext(FollowContext)
 
   useEffect(() => {
@@ -35,97 +100,110 @@ export const BaseFollowButton = ({
       : null
   }, [uid, topicName, setFollowStatus])
 
-  const FollowClick = async () => {
-    await followAction()
-    setFollowStatus({ ...followStatus, [topicName]: true })
-  }
-
-  const UnfollowClick = async () => {
-    await unfollowAction()
-    setFollowStatus({ ...followStatus, [topicName]: false })
-  }
-
   const isFollowing = followStatus[topicName]
-  const text = isFollowing ? t("button.following") : t("button.follow")
-  const checkmark = isFollowing ? (
-    <StyledImage src="/check-white.svg" alt="" />
-  ) : null
-  const handleClick = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    isFollowing ? UnfollowClick() : FollowClick()
+  const [showModal, setShowModal] = useState(false)
+  const wantsConfirm = isFollowing ? confirmUnfollow : confirmFollow
+
+  const toggleFollow = async () => {
+    if (isFollowing) {
+      if (onUnfollow) await onUnfollow()
+      setFollowStatus(prev => ({ ...prev, [topicName]: false }))
+    } else {
+      if (onFollow) await onFollow()
+      setFollowStatus(prev => ({ ...prev, [topicName]: true }))
+    }
   }
 
   return (
     <>
       {!hide && (
-        <ButtonWithCheckmark
-          checkmark={checkmark}
-          handleClick={handleClick}
-          text={text}
-        />
+        <div className="follow-button">
+          <Button
+            type="button"
+            onClick={async () =>
+              wantsConfirm ? setShowModal(true) : await toggleFollow()
+            }
+            className="btn btn-lg py-1"
+          >
+            {t(`button.follow.${isFollowing ? "following" : "follow"}`)}
+            {isFollowing ? <StyledImage src="/check-white.svg" alt="" /> : null}
+          </Button>
+        </div>
       )}
+      <ConfirmFollowToggleModal
+        show={showModal}
+        onConfirm={async () => {
+          await toggleFollow()
+          setShowModal(false)
+        }}
+        onDeny={async () => setShowModal(false)}
+        displayName={displayName}
+        action={isFollowing ? "unfollow" : "follow"}
+      />
     </>
   )
 }
 
-export const ButtonWithCheckmark = ({
-  checkmark,
-  handleClick,
-  text,
-  className
-}: {
-  checkmark: JSX.Element | null
-  handleClick: any
-  text: string
-  className?: string
-}) => {
-  return (
-    <div className="follow-button">
-      <Button onClick={handleClick} className={`btn btn-lg py-1 ${className}`}>
-        {text}
-        {checkmark}
-      </Button>
-    </div>
-  )
-}
-
 export function FollowUserButton({
-  className,
-  profileId
-}: {
-  className?: string
-  profileId: string
-}) {
-  const { user } = useAuth()
-  const uid = user?.uid
+  profileId,
+  fullName,
+  onUnfollow,
+  onFollow,
+  ...rest
+}: FollowButtonProps<UserItem>) {
+  const uid = useAuth().user?.uid
   const topicName = `testimony-${profileId}`
-  const followAction = () =>
-    setFollow(uid, topicName, undefined, undefined, undefined, profileId)
-  const unfollowAction = () => setUnfollow(uid, topicName)
-
+  const { t } = useTranslation("common")
   return (
     <BaseFollowButton
       topicName={topicName}
-      followAction={followAction}
-      unfollowAction={unfollowAction}
+      onFollow={async () => {
+        followTopic({
+          type: "testimony",
+          uid,
+          topicName,
+          data: { userLookup: { profileId } }
+        })
+        if (onFollow) await onFollow()
+      }}
+      onUnfollow={async () => {
+        unfollowTopic(uid, topicName)
+        if (onUnfollow) await onUnfollow()
+      }}
+      displayName={fullName || t("modal.this_user")}
+      {...rest}
     />
   )
 }
 
-export function FollowBillButton({ bill }: { bill: Bill }) {
-  const { user } = useAuth()
-  const uid = user?.uid
-  const { id: billId, court: courtId } = bill
-  const topicName = `bill-${courtId}-${billId}`
-  const followAction = () =>
-    setFollow(uid, topicName, bill, billId, courtId, undefined)
-  const unfollowAction = () => setUnfollow(uid, topicName)
-
+export function FollowBillButton({
+  billId,
+  court,
+  onFollow,
+  onUnfollow,
+  ...rest
+}: FollowButtonProps<BillItem>) {
+  const topicName = `bill-${court}-${billId}`
+  const uid = useAuth().user?.uid
+  const { t } = useTranslation("common")
   return (
     <BaseFollowButton
       topicName={topicName}
-      followAction={followAction}
-      unfollowAction={unfollowAction}
+      onFollow={async () => {
+        followTopic({
+          type: "bill",
+          uid,
+          topicName,
+          data: { billLookup: { billId, court } }
+        })
+        if (onFollow) await onFollow()
+      }}
+      onUnfollow={async () => {
+        unfollowTopic(uid, topicName)
+        if (onUnfollow) await onUnfollow()
+      }}
+      displayName={t("bill.bill", { billId: formatBillId(billId) })}
+      {...rest}
     />
   )
 }
