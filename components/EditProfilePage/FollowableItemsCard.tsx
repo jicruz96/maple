@@ -1,7 +1,7 @@
 import { usePublicProfile } from "components/db"
 import { Internal } from "components/links"
 import {
-  BaseFollowButtonProps,
+  FollowButtonProps,
   FollowUserButton,
   UserItem
 } from "components/shared/FollowButton"
@@ -10,31 +10,29 @@ import { Col, Row, Spinner, Stack } from "../bootstrap"
 import { TitledSectionCard } from "../shared"
 import { OrgIconSmall } from "./StyledEditProfileComponents"
 
-export type FollowableItemsCard<Item> = React.FC<{
+export function FollowableItemsCard<Item>({
+  className,
+  title,
+  subtitle,
+  items,
+  ItemCard
+}: {
   className?: string
   title: string
   subtitle?: string
-  items: (Item & BaseFollowButtonProps)[]
-}>
-type FollowableItemProps = {
-  loading: boolean
-  followButton: JSX.Element
-  content: JSX.Element
-}
-
-export function createFollowableItemsCard<Item>(
-  toFollowableItemProps: (
-    item: Item & BaseFollowButtonProps
-  ) => FollowableItemProps
-): FollowableItemsCard<Item> {
-  return ({ items, className, title, subtitle }) => (
+  items: Item[]
+  ItemCard: React.FC<Item>
+}) {
+  return (
     <TitledSectionCard className={className}>
       <div className={`mx-4 mt-3 d-flex flex-column gap-3`}>
         <Stack>
           <h2>{title}</h2>
           {subtitle ? <p className="mt-0 text-muted">{subtitle}</p> : null}
           <div className="mt-3">
-            {items.map(toFollowableItemProps).map(FollowableItem)}
+            {items.map((item, i) => (
+              <ItemCard key={i} {...item} />
+            ))}
           </div>
         </Stack>
       </div>
@@ -42,11 +40,26 @@ export function createFollowableItemsCard<Item>(
   )
 }
 
-function FollowableItem({
+export function FollowableItemsCardWith<Item>(
+  config: Pick<
+    React.ComponentProps<typeof FollowableItemsCard<Item>>,
+    "ItemCard"
+  >
+): React.FC<
+  Omit<React.ComponentProps<typeof FollowableItemsCard<Item>>, "ItemCard">
+> {
+  return props => <FollowableItemsCard {...props} {...config} />
+}
+
+export function FollowableItemCard({
   loading,
   followButton,
   content
-}: FollowableItemProps) {
+}: {
+  loading: boolean
+  followButton: JSX.Element
+  content: JSX.Element
+}) {
   if (loading) {
     return <Spinner animation="border" className="mx-auto" />
   }
@@ -68,28 +81,31 @@ function FollowableItem({
   )
 }
 
-export const UsersCard: FollowableItemsCard<UserItem> =
-  createFollowableItemsCard<UserItem>(item => {
-    const { profileId } = item
+export const UsersCard = FollowableItemsCardWith<UserItem>({
+  ItemCard: props => {
+    const { profileId } = props
     const { result: profile, loading } = usePublicProfile(profileId)
     const { profileImage, fullName } = profile || {}
-    return {
-      loading,
-      content: (
-        <>
-          <OrgIconSmall
-            className="mr-4 mt-0 mb-0 ms-0"
-            profileImage={profileImage}
+    return (
+      <FollowableItemCard
+        loading={loading}
+        content={
+          <>
+            <OrgIconSmall
+              className="mr-4 mt-0 mb-0 ms-0"
+              profileImage={profileImage}
+            />
+            <Internal href={`/profile?id=${profileId}`}>{fullName}</Internal>
+          </>
+        }
+        followButton={
+          <FollowUserButton
+            fullName={fullName}
+            confirmUnfollow={true}
+            {...props}
           />
-          <Internal href={`/profile?id=${profileId}`}>{fullName}</Internal>
-        </>
-      ),
-      followButton: (
-        <FollowUserButton
-          fullName={fullName}
-          confirmUnfollow={true}
-          {...item}
-        />
-      )
-    }
-  })
+        }
+      />
+    )
+  }
+})

@@ -17,7 +17,7 @@ export type UserItem = {
   profileId: string
   fullName?: string
 }
-export interface BaseFollowButtonProps {
+export type FollowButtonProps<Item = {}> = Item & {
   onFollow?: () => Promise<void>
   onUnfollow?: () => Promise<void>
   confirmFollow?: boolean
@@ -82,7 +82,7 @@ export const BaseFollowButton = ({
   confirmFollow,
   confirmUnfollow,
   hide
-}: BaseFollowButtonProps & {
+}: FollowButtonProps & {
   topicName: string
   displayName: string
 }) => {
@@ -150,7 +150,7 @@ export function FollowUserButton({
   onUnfollow,
   onFollow,
   ...rest
-}: UserItem & BaseFollowButtonProps) {
+}: FollowButtonProps<UserItem>) {
   const uid = useAuth().user?.uid
   const topicName = `testimony-${profileId}`
   const { t } = useTranslation("common")
@@ -182,7 +182,7 @@ export function FollowBillButton({
   onFollow,
   onUnfollow,
   ...rest
-}: BillItem & BaseFollowButtonProps) {
+}: FollowButtonProps<BillItem>) {
   const topicName = `bill-${court}-${billId}`
   const uid = useAuth().user?.uid
   const { t } = useTranslation("common")

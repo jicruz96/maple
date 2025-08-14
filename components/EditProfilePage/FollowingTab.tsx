@@ -3,9 +3,9 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAuth } from "../auth"
 import { firestore } from "../firebase"
 import {
-  createFollowableItemsCard,
-  UsersCard,
-  FollowableItemsCard
+  FollowableItemCard,
+  FollowableItemsCardWith,
+  UsersCard
 } from "./FollowableItemsCard"
 import { useBill } from "components/db"
 import { formatBillId } from "components/formatting"
@@ -17,25 +17,28 @@ import {
 } from "components/shared/FollowButton"
 import { useTranslation } from "next-i18next"
 
-export const BillsCard: FollowableItemsCard<BillItem> =
-  createFollowableItemsCard<BillItem>(item => {
-    const { court, billId } = item
+export const BillsCard = FollowableItemsCardWith<BillItem>({
+  ItemCard: props => {
+    const { court, billId } = props
     const { loading, result: bill } = useBill(court, billId)
-    return {
-      loading,
-      followButton: <FollowBillButton confirmUnfollow={true} {...item} />,
-      content: (
-        <>
-          <Internal href={`/bills/${court}/${billId}`}>
-            {formatBillId(billId)}
-          </Internal>
-          <div className="ms-3">
-            <h6>{bill?.content.Title}</h6>
-          </div>
-        </>
-      )
-    }
-  })
+    return (
+      <FollowableItemCard
+        loading={loading}
+        content={
+          <>
+            <Internal href={`/bills/${court}/${billId}`}>
+              {formatBillId(billId)}
+            </Internal>
+            <div className="ms-3">
+              <h6>{bill?.content.Title}</h6>
+            </div>
+          </>
+        }
+        followButton={<FollowBillButton confirmUnfollow={true} {...props} />}
+      />
+    )
+  }
+})
 
 export function FollowingTab({ className }: { className?: string }) {
   const { user } = useAuth()
