@@ -1,19 +1,14 @@
 from __future__ import annotations
 
 from collections import defaultdict
-import os
-from urllib.parse import urljoin, urlparse, parse_qs
-import requests
-from bs4 import BeautifulSoup, Tag
+from urllib.parse import urlparse, parse_qs
 
 from rich import print
-import json
-import traceback
 import re
-from tqdm import tqdm
 from pydantic import BaseModel, Field
-from typing import Any, Callable, Pattern, Union
+from typing import Callable, Pattern, Union
 import click
+from potato import Hearing
 
 MA_LEGISLATURE_URL = "https://malegislature.gov"
 
@@ -37,51 +32,6 @@ class HearingDocument(BaseModel):
 
     def matches(self, pattern: Union[str, Pattern[str]]) -> bool:
         return bool(re.search(pattern, self.Title))
-
-
-class HearingMetadata(BaseModel):
-    EventId: int
-    Details: str
-    document_urls: list[str] | None = None
-    testimony_instructions: str | None = None
-    committee_votes: Any | None = None
-
-    def scrape_details_page(self) -> None:
-        if self.document_urls is not None and self.testimony_instructions is not None:
-            return
-        resp = requests.get(
-            url=f"{MA_LEGISLATURE_URL}/Events/Hearings/Detail/{self.EventId}",
-            headers={"User-Agent": "hearing-scraper/1.0"},
-        )
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
-        self.get_document_urls(soup)
-        self.get_testimony_instructions(soup)
-        self.get_committee_votes(soup)
-
-    def get_document_urls(self, soup: BeautifulSoup) -> None:
-        """Scrape hearing document urls from the hearing details page.
-
-        Assumptions:
-        - Testimony links appear in the first column of the table inside <div id="documentsSection">
-        """
-        docs_div = soup.find(id="documentsSection")
-        if docs_div:
-            assert isinstance(docs_div, Tag)
-            self.document_urls = [
-                urljoin(MA_LEGISLATURE_URL, str(a.get("href") or ""))
-                for a in docs_div.select(  # type: ignore
-                    "table.agendaTable tbody tr td:first-child a[href]"
-                )
-            ]
-
-    # TODO
-    def get_testimony_instructions(self, soup: BeautifulSoup) -> None:
-        breakpoint()
-
-    # TODO
-    def get_committee_votes(self, soup: BeautifulSoup) -> None:
-        breakpoint()
 
 
 def keyword_regex(s: str) -> Pattern[str]:
@@ -150,27 +100,6 @@ TAG_PATTERNS: dict[str, Callable[[HearingDocument], bool]] = {
 }
 
 
-def get_hearings(cache_only: bool = False) -> list[HearingMetadata]:
-    if os.path.exists("tmp-hearings.json"):
-        with open("tmp-hearings.json", "r") as fp:
-            existing_hearings = [HearingMetadata(**i) for i in json.load(fp)]
-    else:
-        existing_hearings = []
-    if not cache_only:
-        return existing_hearings
-    resp = requests.get(
-        url=f"{MA_LEGISLATURE_URL}/api/Hearings",
-        headers={"Accept": "application/json"},
-    )
-    resp.raise_for_status()
-    new_hearings = [
-        hearing
-        for hearing in [HearingMetadata(**i) for i in resp.json()]
-        if hearing.EventId not in set(md.EventId for md in existing_hearings)
-    ]
-    return new_hearings + existing_hearings
-
-
 @click.group()
 def cli() -> None:
     """Utilities for scraping and analyzing hearing details."""
@@ -183,20 +112,7 @@ def scrape_hearings():
     Scrapes hearing detail pages, extracting document URLs and other metadata for each hearing,
     and saves the results to 'tmp-hearings.json'.
     """
-    hearings = get_hearings(cache_only=False)
-    try:
-        for hearing in tqdm(hearings):
-            hearing.scrape_details_page()
-    except Exception as e:
-        print("Exception occurred:", repr(e))
-        traceback.print_exc()
-    finally:
-        with open("tmp-hearings.json", "w") as fp:
-            json.dump(
-                obj=[hearing.model_dump(exclude_none=True) for hearing in hearings],
-                fp=fp,
-                indent=2,
-            )
+    Hearing.scrape_all(check_api=True)
 
 
 @click.option(
@@ -211,7 +127,7 @@ def analyze_hearings(print_unmatched: bool):
     document tag matches, unmatched documents, and file extension counts.
     """
 
-    hearings = get_hearings(cache_only=True)
+    hearings = Hearing.load_all(check_api=False)
     if not hearings:
         print("Run `scrape` command first to get some hearings.")
     ext_counts: dict[str, int] = {}
@@ -219,7 +135,7 @@ def analyze_hearings(print_unmatched: bool):
     unmatched: list[str] = []
     url_tags: dict[str, set[str]] = {}
     for md in hearings:
-        urls = md.document_urls or []
+        urls = md.document_urls if isinstance(md.document_urls, list) else []
         for url in urls:
             parsed_url = HearingDocument.from_url(url)
             matched = False
@@ -239,7 +155,10 @@ def analyze_hearings(print_unmatched: bool):
         return f"{(part / whole) * 100:.1f}%"
 
     hearings_with_docs = len([hearing for hearing in hearings if hearing.document_urls])
-    total_urls = sum(len(hearing.document_urls or []) for hearing in hearings)
+    total_urls = sum(
+        len(hearing.document_urls if isinstance(hearing.document_urls, list) else [])
+        for hearing in hearings
+    )
     total_matches = total_urls - len(unmatched)
     print("[bold]Hearing Testimony URL Report[/bold]")
     print(
