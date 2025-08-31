@@ -21,6 +21,7 @@ from typing import (
     Generator,
     Awaitable,
     Generic,
+    Sequence,
     overload,
     Self,
     cast,
@@ -28,6 +29,8 @@ from typing import (
 from typing import TypeVar
 
 T = TypeVar("T")
+BASE = "https://malegislature.gov"
+CACHE_ROOT = "malegislature-api-cache"
 
 
 class ToBeScraped(BaseModel):
@@ -53,7 +56,7 @@ async def _log_response(response: httpx.Response) -> None:
 
 
 _async_client: httpx.AsyncClient | None = None
-_error_log_path: str = "tmp-scrape-errors.jsonl"
+_error_log_path: str = os.path.join(CACHE_ROOT, "scrape-errors.jsonl")
 _error_log_lock: asyncio.Lock | None = None
 
 
@@ -88,23 +91,27 @@ async def log_scrape_error(
     global _error_log_lock
     if _error_log_lock is None:
         _error_log_lock = asyncio.Lock()
-    entry = {
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
-        "model": model,
-        "id": id,
-        "url": url,
-        "status": status,
-        "message": (message or "").strip(),
-    }
-    data = json.dumps(entry) + "\n"
+
+    def _log_error() -> None:
+        with open(_error_log_path, "a", encoding="utf-8") as fp:
+            fp.write(
+                (
+                    json.dumps(
+                        {
+                            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+                            "model": model,
+                            "id": id,
+                            "url": url,
+                            "status": status,
+                            "message": (message or "").strip(),
+                        }
+                    )
+                    + "\n"
+                )
+            )
+
     async with _error_log_lock:
-        # Use a thread for file I/O to avoid blocking the loop
-        await asyncio.to_thread(_append_text, _error_log_path, data)
-
-
-def _append_text(path: str, data: str) -> None:
-    with open(path, "a", encoding="utf-8") as fp:
-        fp.write(data)
+        await asyncio.to_thread(_log_error)
 
 
 # Async cached property helper: usage -> value = await self.prop
@@ -149,15 +156,28 @@ class async_cached_property(Generic[T_async]):  # noqa: N801
 UNSCRAPED = ToBeScraped()
 ScrapableField = Annotated[T | None | ToBeScraped, Field(default=UNSCRAPED)]
 
-BASE = "https://malegislature.gov"
-
 
 class ScrapableModel(BaseModel):
-    list_endpoint: ClassVar[str] = "/"
+    list_endpoint: ClassVar[str | None] = None
     # Map inbound JSON keys -> model field names (for collisions/aliases)
     field_alias_map: ClassVar[dict[str, str]] = {}
+    # Registry of subclasses that declare a concrete list endpoint
+    registered_models: ClassVar[list[type["ScrapableModel"]]] = []
 
     model_config = {"validate_assignment": True}
+
+    def __init_subclass__(cls, **kwargs):  # type: ignore[override]
+        super().__init_subclass__(**kwargs)
+        try:
+            endpoint = getattr(cls, "list_endpoint")
+        except Exception:
+            endpoint = None
+        if (
+            isinstance(endpoint, str)
+            and endpoint.strip() != ""
+            and cls is not ScrapableModel
+        ):
+            ScrapableModel.registered_models.append(cls)  # type: ignore[arg-type]
 
     @property
     def scrapable_fields(self) -> list[str]:
@@ -181,11 +201,9 @@ class ScrapableModel(BaseModel):
 
     @classmethod
     def cache_dirname(cls) -> str:
-        return (
-            "tmp-"
-            # converts the ClassName to class-name (kebab case)
-            + re.sub(r"(?<!^)(?=[A-Z])", "-", cls.__name__).lower()
-        )
+        # Store per-model caches under a single root folder
+        model_dir = re.sub(r"(?<!^)(?=[A-Z])", "-", cls.__name__).lower()
+        return os.path.join(CACHE_ROOT, model_dir)
 
     @classmethod
     def _id_to_filename(cls, *, id: str) -> str:
@@ -209,14 +227,6 @@ class ScrapableModel(BaseModel):
     def _load_all_cached(cls) -> list[Self]:
         dirname = cls.cache_dirname()
         if not os.path.isdir(dirname):
-            # Backward compatibility: load from legacy single-file cache if present
-            legacy_file = f"{dirname}.json"
-            if os.path.exists(legacy_file):
-                try:
-                    with open(legacy_file, "r") as fp:
-                        return [cls(**i) for i in json.load(fp)]
-                except Exception:
-                    return []
             return []
         items: list[Self] = []
         for f in glob(os.path.join(dirname, "*.json")):
@@ -225,7 +235,11 @@ class ScrapableModel(BaseModel):
         return items
 
     @classmethod
-    async def scrape_all(cls, check_api: bool = True, concurrency: int = 8) -> None:
+    async def scrape_all(
+        cls,
+        check_api: bool | str = True,
+        concurrency: int = 8,
+    ) -> None:
         items = await cls.load_all(check_api=check_api)
 
         sem = asyncio.Semaphore(max(1, concurrency))
@@ -237,20 +251,49 @@ class ScrapableModel(BaseModel):
         await asyncio.gather(*(runner(i) for i in items))
 
     @classmethod
+    def _response_to_items(cls, resp: httpx.Response) -> Sequence[Self]:
+        return [cls(**i) for i in resp.json()]
+
+    @classmethod
     async def load_all(
-        cls, *, check_api: bool = True, overwrite_from_api: bool = False
+        cls,
+        *,
+        check_api: bool | str = True,
+        overwrite_from_api: bool = False,
     ) -> list[Self]:
         if not check_api:
             return cls._load_all_cached()
 
         # Fetch the authoritative list from the API
         client = await get_client()
-        resp = await client.get(
-            f"{BASE}{cls.list_endpoint}", headers={"Accept": "application/json"}
-        )
-        resp.raise_for_status()
+        if not cls.list_endpoint and not isinstance(check_api, str):
+            raise ValueError(
+                f"Cannot check API for {cls.__name__} because list_endpoint is "
+                "not set and check_api did not provide an override"
+            )
+        endpoint = cls.list_endpoint if isinstance(check_api, bool) else check_api
+        assert isinstance(endpoint, str)
+        url = BASE + endpoint
+        print(f"\nScraping {cls.__name__} from {url!r} ...")
+        resp = await client.get(url, headers={"Accept": "application/json"})
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in {500, 502, 503, 504}:
+                print(
+                    f"[warning] Could not fetch {cls.__name__} list from API: "
+                    f"{exc.response.status_code} {exc.response.reason_phrase}"
+                )
+                await log_scrape_error(
+                    model=cls.__name__,
+                    id="load_all",
+                    url=url,
+                    status=exc.response.status_code,
+                    message=exc.response.text[:500],
+                )
+                return cls._load_all_cached()
 
-        api_items = [cls(**i) for i in resp.json()]
+        api_items = cls._response_to_items(resp)
         results: list[Self] = []
         new_items: list[Self] = []
 
@@ -326,23 +369,20 @@ class ScrapableModel(BaseModel):
                 parsed_value.save()
             elif (
                 isinstance(parsed_value, list)
-                and len(parsed_value) > 0
+                and len(parsed_value) > 0  # type: ignore[arg-type]
                 and isinstance(parsed_value[0], ScrapableModel)
             ):
                 for nested in cast(list[ScrapableModel], parsed_value):
                     nested.save()
 
-    def get_scrapers(
-        self, except_for: list[str] | None = None
-    ) -> Generator[Callable[[], None], None, None]:
-        for field in set(self.unscraped_fields) - set(except_for or []):
+    def get_scrapers(self) -> Generator[Callable[[], Awaitable[None]], None, None]:
+        for field in set(self.unscraped_fields):
             if getter := getattr(self, f"scrape_{field}", None):
                 yield getter
 
     async def scrape(self) -> None:
         for getter in self.get_scrapers():
-            # Expect async scrape_* methods; await them
-            await getter()  # type: ignore[misc]
+            await getter()
             self.save()
 
 
@@ -406,7 +446,7 @@ class CanBeScrapedFromADetailUrl(ScrapableModel):
                 await _scrape(value)
             elif (
                 isinstance(value, list)
-                and len(value) > 0
+                and len(value) > 0  # type: ignore[arg-type]
                 and isinstance(value[0], ScrapableModel)
             ):
                 for item in cast(list[ScrapableModel], value):
@@ -480,9 +520,9 @@ class Committee(CanBeScrapedFromADetailUrl):
         if self.Details:
             return self.Details
         name: str | None = None
-        if getattr(self, "ShortName", UNSCRAPED) is not UNSCRAPED and self.ShortName:
+        if not isinstance(self.ShortName, (ToBeScraped, type(None))) and self.ShortName:
             name = self.ShortName
-        elif getattr(self, "FullName", UNSCRAPED) is not UNSCRAPED and self.FullName:
+        elif not isinstance(self.FullName, (ToBeScraped, type(None))) and self.FullName:
             name = self.FullName
         if name:
             return f"{self.GeneralCourtNumber}-{name}"
@@ -521,6 +561,26 @@ class CommitteeRecommendation(BaseModel):
     Votes: list[CommitteeVote] | None = None
 
     field_alias_map: ClassVar[dict[str, str]] = {"Committee": "Committee_"}
+
+
+class Event(BaseModel):
+    EventId: int
+    Name: str | None = None
+    Status: str | None = None
+    EventDate: datetime | None = None
+    StartTime: datetime | None = None
+    Description: str | None = None
+
+
+class SpecialEvent(ScrapableModel, Event):
+    list_endpoint = "/api/SpecialEvents"
+    Location_: Location | None = Field(default=None, validation_alias="Location")
+
+    field_alias_map: ClassVar[dict[str, str]] = {"Location": "Location_"}
+
+    @property
+    def id(self) -> str:
+        return str(self.EventId)
 
 
 class RollCall(CanBeScrapedFromADetailUrl):
@@ -590,12 +650,74 @@ class Document(CanBeScrapedFromADetailUrl):
     CommitteeRecommendations: ScrapableField[list[CommitteeRecommendation]]
     Amendments: ScrapableField[list[Amendment]]
 
+    similar: ScrapableField[list[Document]]
+    document_history: ScrapableField[list[DocumentHistoryAction]]
+
     @property
     def id(self) -> str:
         id = self.Details or self.Title
         if not id:
             raise ValueError(f"Could not compute unique Id for Document {self}")
         return id
+
+    async def scrape_with_billnumber_then_fallback_to_docketnumber(
+        self, endpoint: str
+    ) -> httpx.Response | None:
+        try:
+            assert self.BillNumber is not None
+            resp = await (await get_client()).get(
+                endpoint.format(self.BillNumber),
+                headers={"Accept": "application/json"},
+            )
+            resp.raise_for_status()
+            return resp
+        except (AssertionError, httpx.HTTPStatusError) as exc:
+            # try using the docket number instead
+            if not self.DocketNumber:
+                await log_scrape_error(
+                    model=self.__class__.__name__,
+                    id=self.id,
+                    url=endpoint.format(self.BillNumber),
+                    status=exc.response.status_code
+                    if isinstance(exc, httpx.HTTPStatusError)
+                    else 0,
+                    message=str(exc),
+                )
+                return None
+            try:
+                resp = await (await get_client()).get(
+                    endpoint.format(self.DocketNumber),
+                    headers={"Accept": "application/json"},
+                )
+                resp.raise_for_status()
+                return resp
+            except httpx.HTTPStatusError as exc2:
+                await log_scrape_error(
+                    model=self.__class__.__name__,
+                    id=self.id,
+                    url=endpoint.format(self.DocketNumber),
+                    status=exc2.response.status_code,
+                    message=str(exc2),
+                )
+                return None
+
+    async def scrape_similar(self) -> None:
+        resp = await self.scrape_with_billnumber_then_fallback_to_docketnumber(
+            f"{BASE}/api/Documents/{{}}/Similar"
+        )
+        if not resp:
+            self.similar = []
+        else:
+            self.similar = [Document(**i) for i in resp.json()]
+
+    async def scrape_document_history(self) -> None:
+        resp = await self.scrape_with_billnumber_then_fallback_to_docketnumber(
+            f"{BASE}/api/Documents/{{}}/DocumentHistoryActions"
+        )
+        if not resp:
+            self.document_history = []
+        else:
+            self.document_history = [DocumentHistoryAction(**i) for i in resp.json()]
 
 
 class AgendaItem(BaseModel):
@@ -610,6 +732,8 @@ class HearingRescheduled(BaseModel):
     EventDate: datetime | None = None
     StartTime: datetime | None = None
     Location_: Location | None = Field(default=None, validation_alias="Location")
+
+    field_alias_map: ClassVar[dict[str, str]] = {"Location": "Location_"}
 
 
 class Location(BaseModel):
@@ -676,15 +800,230 @@ class Hearing(CanBeScrapedFromADetailUrl):
         pass
 
 
-# ------------------------------ Script Entrypoint ------------------------------
+# ----------------------------- Additional API Models -----------------------------
+
+
+class GeneralCourt(ScrapableModel):
+    Number: int
+    FirstYear: int
+    SecondYear: int
+    Name: str | None = None
+
+    @property
+    def id(self) -> str:
+        return str(self.Number)
+
+
+class GeneralLawPart(CanBeScrapedFromADetailUrl):
+    list_endpoint = "/api/Parts"
+
+    Code: str | None = None
+
+    Name: ScrapableField[str]
+    FirstChapter: ScrapableField[int]
+    LastChapter: ScrapableField[int]
+    Chapters: ScrapableField[list[GeneralLawChapter]]
+
+    @property
+    def id(self) -> str:
+        if self.Code:
+            return self.Code
+        if self.Details:
+            return self.Details
+        raise ValueError(f"Could not compute unique Id for GeneralLawPart {self}")
+
+
+class GeneralLawChapter(CanBeScrapedFromADetailUrl):
+    list_endpoint = "/api/Chapters"
+
+    Code: str | None = None
+
+    Name: ScrapableField[str]
+    IsRepealed: ScrapableField[bool]
+    StrickenText: ScrapableField[str]
+    Part: ScrapableField[GeneralLawPart]
+    Sections: ScrapableField[list[GeneralLawSection]]
+
+    @property
+    def id(self) -> str:
+        if self.Code:
+            return self.Code
+        if self.Details:
+            return self.Details
+        raise ValueError(f"Could not compute unique Id for GeneralLawChapter {self}")
+
+
+class GeneralLawSection(CanBeScrapedFromADetailUrl):
+    Code: str | None = None
+    ChapterCode: str | None = None
+
+    Name: ScrapableField[str]
+    IsRepealed: ScrapableField[bool]
+    Text: ScrapableField[str]
+    Chapter: ScrapableField[GeneralLawChapter]
+    Part: ScrapableField[GeneralLawPart]
+
+    @property
+    def id(self) -> str:
+        if self.Code:
+            return self.Code
+        if self.Details:
+            return self.Details
+        raise ValueError(f"Could not compute unique Id for GeneralLawSection {self}")
+
+
+class DocumentHistoryAction(BaseModel):
+    Date: datetime
+    Branch: str | None = None
+    Action: str | None = None
+
+
+class HouseJournal(CanBeScrapedFromADetailUrl):
+    list_endpoint = "/api/HouseJournals"
+
+    JournalSessionDate: str | None = None
+    GeneralCourtNumber: int
+    IsJoint: bool
+    DownloadUrl: str | None = None
+    SessionDate: datetime | None = None
+    RollCallRange: str | None = None
+
+    @property
+    def id(self) -> str:
+        if self.Details:
+            return self.Details
+        jc = str(self.GeneralCourtNumber)
+        jsd = self.JournalSessionDate or ""
+        ij = "1" if self.IsJoint else "0"
+        if jc and jsd:
+            return f"{jc}-{jsd}-{ij}"
+        raise ValueError(f"Could not compute unique Id for HouseJournal {self}")
+
+
+class SenateJournal(CanBeScrapedFromADetailUrl):
+    list_endpoint = "/api/SenateJournals"
+
+    IsJoint: bool
+    JournalSessionDate: str | None = None
+
+    GeneralCourtNumber: ScrapableField[int]
+    DownloadUrl: ScrapableField[str]
+    SessionDate: ScrapableField[datetime]
+
+    @property
+    def id(self) -> str:
+        if self.Details:
+            return self.Details
+        jc = str(self.GeneralCourtNumber)
+        jsd = self.JournalSessionDate or ""
+        ij = "1" if self.IsJoint else "0"
+        if jc and jsd:
+            return f"{jc}-{jsd}-{ij}"
+        raise ValueError(f"Could not compute unique Id for SenateJournal {self}")
+
+
+class Leadership(ScrapableModel):
+    Member: LegislativeMember | None = None
+    Position: str
+
+    @property
+    def id(self) -> str:
+        return self.Position
+
+
+class Report(ScrapableModel):
+    list_endpoint = "/api/Reports"
+
+    Date: datetime
+    Name: str | None = None
+    SubmittedBy: str | None = None
+    DownloadUrl: str | None = None
+
+    @property
+    def id(self) -> str:
+        return str(self.Date.date())
+
+
+class Session(ScrapableModel, Event):
+    list_endpoint = "/api/Sessions"
+
+    GeneralCourtNumber: int
+    LocationName: str | None = None
+
+    @property
+    def id(self) -> str:
+        return str(self.EventId)
+
+
+class SessionLaw(ScrapableModel):
+    list_endpoint = "/api/SessionLaws"
+
+    Year: int
+    ChapterNumber: str | None = None
+    Type: str | None = None
+    ApprovalType: str | None = None
+    Title: str | None = None
+    Status: str | None = None
+    ApprovedDate: str | None = None
+    ChapterText: str | None = None
+    OriginBill: Document | None = None
+
+    @property
+    def id(self) -> str:
+        if self.Year and self.ChapterNumber:
+            return f"{self.Year}-{self.ChapterNumber}"
+        if self.Title:
+            return self.Title
+        raise ValueError(f"Could not compute unique Id for SessionLaw {self}")
+
+
+class City(ScrapableModel):
+    list_endpoint = "/api/Documents/SupportedCities"
+
+    name: str
+    documents: ScrapableField[list[Document]]
+
+    @classmethod
+    def _response_to_items(cls, resp: httpx.Response) -> Sequence[Self]:
+        return [cls(name=i, documents=UNSCRAPED) for i in resp.json()]
+
+    @property
+    def id(self) -> str:
+        return self.name
+
+    async def scrape_documents(self) -> None:
+        resp = await (await get_client()).get(
+            f"{BASE}/api/Cities/{self.name}/Documents",
+            headers={"Accept": "application/json"},
+        )
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            if status in {400, 404}:
+                await log_scrape_error(
+                    model=self.__class__.__name__,
+                    id=self.id,
+                    url=f"{BASE}/api/Cities/{self.name}/Documents",
+                    status=status,
+                    message=exc.response.text[:500],
+                )
+                self.documents = []
+                self.save()
+                return
+            raise
+
+        self.documents = [Document(**i) for i in resp.json()]
 
 
 async def _main() -> None:
-    # Explicit list of models to scrape
-    models: list[type[ScrapableModel]] = [Document, Hearing, Committee]
-    for cls in models:
-        print(f"\nScraping {cls.__name__} from {cls.list_endpoint} ...")
-        await cls.scrape_all(check_api=True, concurrency=8)
+    for cls in ScrapableModel.registered_models:
+        print(cls.__name__)
+        continue
+        await cls.scrape_all(check_api=True)
+    return
+    await Leadership.scrape_all(check_api="/api/Branches/House/Leadership")
+    await Leadership.scrape_all(check_api="/api/Branches/Senate/Leadership")
     await aclose_client()
 
 
