@@ -1,6 +1,6 @@
+import re
 from abc import abstractmethod
 from functools import cached_property
-import re
 from typing import Callable, ClassVar
 
 from pydantic import BaseModel, computed_field

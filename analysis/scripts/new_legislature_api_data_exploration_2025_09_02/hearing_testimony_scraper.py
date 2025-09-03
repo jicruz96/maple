@@ -1,23 +1,23 @@
 from __future__ import annotations
 
-from datetime import datetime
 import os
 import re
 from collections import Counter
+from datetime import datetime
 from typing import Literal
 from urllib.parse import parse_qs, urlparse
 
-from .utils.tagging import ShouldMatch, ShouldMatchOneOf, keyword_regex, TaggableModel
 from pydantic import Field
 from rich import print
 from tqdm import tqdm
-from .utils.reports import report_for
+
 from .ai import LLMInputModel, LLMOutputModel, parse_all
-from .utils.doc_reader import DocumentRef
-from .utils.cacheable_model import CacheableModel
 from .malegislature_api_scraper import Hearing
 from .utils.async_utils import http_get, run_in_lifespan
-
+from .utils.cacheable_model import CacheableModel
+from .utils.doc_reader import DocumentRef
+from .utils.reports import report_for
+from .utils.tagging import ShouldMatch, ShouldMatchOneOf, TaggableModel, keyword_regex
 
 BILL_ID_PAT = r"[HS]\.?\d+"
 DASH_SEP_PAT = r"\s+[-–]\s+"

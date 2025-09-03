@@ -1,11 +1,8 @@
 from collections import Counter, defaultdict
 from typing import Any
-from rich import print
-import click
 
-from analysis.scripts.new_legislature_api_data_exploration_2025_09_02.utils.reports import (
-    report_for,
-)
+import click
+from rich import print
 
 from .hearing_testimony_scraper import (
     HearingDocument,
@@ -19,6 +16,7 @@ from .malegislature_api_scraper import (
     scrape_malegislature_api,
 )
 from .utils.async_utils import run_in_lifespan
+from .utils.reports import report_for
 
 
 @click.group()

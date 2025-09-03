@@ -22,7 +22,6 @@ from pydantic.main import IncEx
 from rich import print  # pyright: ignore[reportUnusedImport]  # noqa: F401
 
 from .async_utils import http_get
-
 from .base_model import BaseModel
 from .cacheable_model import CacheableModel
 
