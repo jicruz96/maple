@@ -9,6 +9,7 @@ from urllib.parse import urljoin
 import httpx
 from bs4 import BeautifulSoup, Tag
 from pydantic import Field
+from pydantic_cacheable_model import CacheId
 from tqdm import tqdm
 from typing_extensions import Self
 
@@ -61,7 +62,7 @@ class LegislativeMember(MALegislatureAPIModelWithExtraScrapableDetails):
     list_endpoint = "/api/LegislativeMembers"
 
     GeneralCourtNumber: int
-    MemberCode: str
+    MemberCode: CacheId[str]
 
     Name: ScrapableField[str]
     LeadershipPosition: ScrapableField[str]
@@ -75,10 +76,6 @@ class LegislativeMember(MALegislatureAPIModelWithExtraScrapableDetails):
     SponsoredBills: ScrapableField[list[Document]]
     CoSponsoredBills: ScrapableField[list[Document]]
     Committees: ScrapableField[list[CommitteeModel]]
-
-    @property
-    def id(self) -> str:
-        return self.MemberCode
 
 
 class BillSponsorTypeEnum(Enum):
@@ -180,12 +177,9 @@ class Event(BaseModel):
 
 
 class SpecialEvent(MALegislatureAPIModel, Event):
+    EventId: CacheId[int]
     list_endpoint = "/api/SpecialEvents"
     Location: LocationModel | None = None
-
-    @property
-    def id(self) -> str:
-        return str(self.EventId)
 
 
 class RollCall(MALegislatureAPIModelWithExtraScrapableDetails):
@@ -315,7 +309,7 @@ async def get_soup(url: str) -> BeautifulSoup:
 class Hearing(MALegislatureAPIModelWithExtraScrapableDetails):
     list_endpoint = "/api/Hearings"
 
-    EventId: int
+    EventId: CacheId[int]
 
     # scraped from hearing detail API
     Name: ScrapableField[str]
@@ -335,10 +329,6 @@ class Hearing(MALegislatureAPIModelWithExtraScrapableDetails):
     async def scrape(self, *, use_cache: bool = True) -> None:
         await self.scrape_testimony_instructions()  # NOTE: hack
         await super().scrape(use_cache=use_cache)
-
-    @property
-    def id(self) -> str:
-        return str(self.EventId)
 
     async def scrape_document_urls(self) -> None:
         """Scrape hearing document urls from the hearing details page.
@@ -362,25 +352,15 @@ class Hearing(MALegislatureAPIModelWithExtraScrapableDetails):
 
 
 class GeneralCourt(MALegislatureAPIModel):
-    Number: int
+    Number: CacheId[int]
     FirstYear: int
     SecondYear: int
     Name: str | None = None
 
-    @property
-    def id(self) -> str:
-        return str(self.Number)
 
-
-class GeneralLawPart(MALegislatureAPIModelWithExtraScrapableDetails):
-    list_endpoint = "/api/Parts"
-
+class GeneralLawBase(MALegislatureAPIModelWithExtraScrapableDetails):
     Code: str | None = None
-
     Name: ScrapableField[str]
-    FirstChapter: ScrapableField[int]
-    LastChapter: ScrapableField[int]
-    Chapters: ScrapableField[list[GeneralLawChapter]]
 
     @property
     def id(self) -> str:
@@ -389,51 +369,34 @@ class GeneralLawPart(MALegislatureAPIModelWithExtraScrapableDetails):
         if self.Code:
             return self.Code
         raise UncomputableIdError(
-            f"Could not compute unique Id for GeneralLawPart {self}"
+            f"Could not compute unique Id for {type(self).__name__} {self}"
         )
 
 
-class GeneralLawChapter(MALegislatureAPIModelWithExtraScrapableDetails):
+class GeneralLawPart(GeneralLawBase):
+    list_endpoint = "/api/Parts"
+
+    FirstChapter: ScrapableField[int]
+    LastChapter: ScrapableField[int]
+    Chapters: ScrapableField[list[GeneralLawChapter]]
+
+
+class GeneralLawChapter(GeneralLawBase):
     list_endpoint = "/api/Chapters"
 
-    Code: str | None = None
-
-    Name: ScrapableField[str]
     IsRepealed: ScrapableField[bool]
     StrickenText: ScrapableField[str]
     Part: ScrapableField[GeneralLawPart]
     Sections: ScrapableField[list[GeneralLawSection]]
 
-    @property
-    def id(self) -> str:
-        if self.Details:
-            return self.Details
-        if self.Code:
-            return self.Code
-        raise UncomputableIdError(
-            f"Could not compute unique Id for GeneralLawChapter {self}"
-        )
-
 
 class GeneralLawSection(MALegislatureAPIModelWithExtraScrapableDetails):
-    Code: str | None = None
     ChapterCode: str | None = None
 
-    Name: ScrapableField[str]
     IsRepealed: ScrapableField[bool]
     Text: ScrapableField[str]
     Chapter: ScrapableField[GeneralLawChapter]
     Part: ScrapableField[GeneralLawPart]
-
-    @property
-    def id(self) -> str:
-        if self.Details:
-            return self.Details
-        if self.Code:
-            return self.Code
-        raise UncomputableIdError(
-            f"Could not compute unique Id for GeneralLawSection {self}"
-        )
 
 
 class DocumentHistoryAction(BaseModel):
@@ -442,62 +405,44 @@ class DocumentHistoryAction(BaseModel):
     Action: str | None = None
 
 
-class HouseJournal(MALegislatureAPIModel):
-    list_endpoint = "/api/HouseJournals"
-
+class JournalBase(MALegislatureAPIModel):
     GeneralCourtNumber: int
     IsJoint: bool
     Details: str | None = None
     JournalSessionDate: str | None = None
+
+    @property
+    def id(self) -> str:
+        if self.Details:
+            return self.Details
+        jc = str(self.GeneralCourtNumber)
+        jsd = self.JournalSessionDate or ""
+        ij = "1" if self.IsJoint else "0"
+        if jc and jsd:
+            return f"{jc}-{jsd}-{ij}"
+        raise UncomputableIdError(
+            f"Could not compute unique Id for {type(self).__name__} {self}"
+        )
+
+
+class HouseJournal(JournalBase):
+    list_endpoint = "/api/HouseJournals"
+
     DownloadUrl: str | None = None
     SessionDate: datetime | None = None
     RollCallRange: str | None = None
 
-    @property
-    def id(self) -> str:
-        if self.Details:
-            return self.Details
-        jc = str(self.GeneralCourtNumber)
-        jsd = self.JournalSessionDate or ""
-        ij = "1" if self.IsJoint else "0"
-        if jc and jsd:
-            return f"{jc}-{jsd}-{ij}"
-        raise UncomputableIdError(
-            f"Could not compute unique Id for HouseJournal {self}"
-        )
 
-
-class SenateJournal(MALegislatureAPIModelWithExtraScrapableDetails):
+class SenateJournal(JournalBase, MALegislatureAPIModelWithExtraScrapableDetails):
     list_endpoint = "/api/SenateJournals"
 
-    IsJoint: bool
-    JournalSessionDate: str | None = None
-
-    GeneralCourtNumber: ScrapableField[int]
     DownloadUrl: ScrapableField[str]
     SessionDate: ScrapableField[datetime]
-
-    @property
-    def id(self) -> str:
-        if self.Details:
-            return self.Details
-        jc = str(self.GeneralCourtNumber)
-        jsd = self.JournalSessionDate or ""
-        ij = "1" if self.IsJoint else "0"
-        if jc and jsd:
-            return f"{jc}-{jsd}-{ij}"
-        raise UncomputableIdError(
-            f"Could not compute unique Id for SenateJournal {self}"
-        )
 
 
 class Leadership(MALegislatureAPIModel):
     Member: LegislativeMember | None = None
-    Position: str
-
-    @property
-    def id(self) -> str:
-        return self.Position
+    Position: CacheId[str]
 
 
 class Report(MALegislatureAPIModel):
@@ -516,12 +461,9 @@ class Report(MALegislatureAPIModel):
 class Session(MALegislatureAPIModel, Event):
     list_endpoint = "/api/Sessions"
 
+    EventId: CacheId[int]
     GeneralCourtNumber: int
     LocationName: str | None = None
-
-    @property
-    def id(self) -> str:
-        return str(self.EventId)
 
 
 class SessionLaw(MALegislatureAPIModel):
@@ -549,16 +491,12 @@ class SessionLaw(MALegislatureAPIModel):
 class City(MALegislatureAPIModel):
     list_endpoint = "/api/Documents/SupportedCities"
 
-    name: str
+    name: CacheId[str]
     documents: ScrapableField[list[Document]]
 
     @classmethod
     def _response_to_models(cls, resp: httpx.Response) -> Sequence[Self]:
         return [cls(name=i) for i in resp.json()]  # pyright: ignore[reportCallIssue]
-
-    @property
-    def id(self) -> str:
-        return self.name
 
     async def scrape_documents(self) -> None:
         url = f"{self.BASE_URL}/api/Cities/{self.name}/Documents"

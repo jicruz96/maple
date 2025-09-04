@@ -8,6 +8,7 @@ from typing import Literal
 from urllib.parse import parse_qs, urlparse
 
 from pydantic import Field
+from pydantic_cacheable_model import CacheId
 from rich import print
 from tqdm import tqdm
 
@@ -123,15 +124,11 @@ class HearingDocument(TaggableModel, CacheableModel, LLMInputModel):
     }
 
     url: str = Field(repr=False)
-    attachment_id: int
+    attachment_id: CacheId[int]
     title: str
     file_extension: str
 
     llm_response_model = ParsedTestimonyFile
-
-    @property
-    def id(self) -> str:
-        return str(self.attachment_id)
 
     @property
     def system(self) -> str:
