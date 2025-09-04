@@ -3,13 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from functools import cache
-from typing import Self, Sequence
+from typing import Sequence
 from urllib.parse import urljoin
 
 import httpx
 from bs4 import BeautifulSoup, Tag
 from pydantic import Field
 from tqdm import tqdm
+from typing_extensions import Self
 
 from .utils.async_utils import http_get, run_in_lifespan
 from .utils.base_model import BaseModel

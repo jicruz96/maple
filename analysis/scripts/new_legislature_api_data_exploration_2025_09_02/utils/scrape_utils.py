@@ -11,10 +11,10 @@ from typing import (
     Callable,
     ClassVar,
     Literal,
-    Self,
     Sequence,
     TypeVar,
 )
+from typing_extensions import Self
 
 import httpx
 from pydantic import Field
@@ -23,7 +23,7 @@ from rich import print  # pyright: ignore[reportUnusedImport]  # noqa: F401
 
 from .async_utils import http_get
 from .base_model import BaseModel
-from .cacheable_model import CacheableModel
+from .base_model import CacheableModel
 
 T = TypeVar("T")
 
@@ -115,7 +115,7 @@ class ScrapableModel(CacheableModel):
 
         if cls.list_endpoint:
             existing_cache_files = set(
-                glob(os.path.join(cls.cache_dirname(), "*.json"))
+                glob(os.path.join(cls.cache_dir_path(), "*.json"))
             )
             stale_data = existing_cache_files - {m.cache_path for m in models}
             for fpath in stale_data:
@@ -127,10 +127,10 @@ class ScrapableModel(CacheableModel):
     async def get(
         cls, *, id: str, not_found_ok: bool = False, check_api: bool = False
     ) -> Self | None:
-        obj = cls.load(id=id)
+        obj = cls.load(cache_id=id)
         if not obj and check_api:
             await cls.fetch_all(check_api=True, use_cache=True)  # hack
-            obj = cls.load(id=id)
+            obj = cls.load(cache_id=id)
         if not obj and not not_found_ok:
             raise ValueError(f"Could not find {cls.__name__}({id})")
         return obj
