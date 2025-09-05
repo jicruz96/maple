@@ -15,7 +15,7 @@ from .malegislature_api_scraper import (
     LegislativeMember,
     scrape_malegislature_api,
 )
-from .utils.async_utils import run_in_lifespan
+from ji_async_http_utils.httpx import run_in_lifespan
 from .utils.reports import report_for
 
 

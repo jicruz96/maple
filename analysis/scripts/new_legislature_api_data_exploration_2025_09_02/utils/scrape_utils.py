@@ -21,7 +21,7 @@ from pydantic import Field
 from pydantic.main import IncEx
 from rich import print  # pyright: ignore[reportUnusedImport]  # noqa: F401
 
-from .async_utils import http_get
+from ji_async_http_utils.httpx import http_get
 from .base_model import BaseModel
 from .base_model import CacheableModel
 

@@ -13,7 +13,7 @@ from pydantic_cacheable_model import CacheId
 from tqdm import tqdm
 from typing_extensions import Self
 
-from .utils.async_utils import http_get, run_in_lifespan
+from ji_async_http_utils.httpx import http_get, run_in_lifespan
 from .utils.base_model import BaseModel
 from .utils.scrape_utils import (
     ScrapableField,

@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from .ai import LLMInputModel, LLMOutputModel, parse_all
 from .malegislature_api_scraper import Hearing
-from .utils.async_utils import http_get, run_in_lifespan
+from ji_async_http_utils.httpx import http_get, run_in_lifespan
 from .utils.base_model import CacheableModel
 from .utils.doc_reader import DocumentRef
 from .utils.reports import report_for
