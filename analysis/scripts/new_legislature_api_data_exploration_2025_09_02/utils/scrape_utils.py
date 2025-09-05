@@ -98,7 +98,7 @@ class ScrapableModel(CacheableModel):
         endpoint = cls.list_endpoint if isinstance(check_api, bool) else check_api
         assert isinstance(endpoint, str)
         url = cls.BASE_URL + endpoint
-        # print(f"\nScraping {cls.__name__} from {url!r} ...")
+        print(f"\nScraping {cls.__name__} from {url!r} ...")
         resp = await cls.http_get(
             id="fetch_all",
             url=url,

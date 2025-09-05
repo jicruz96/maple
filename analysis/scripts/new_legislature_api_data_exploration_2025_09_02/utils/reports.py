@@ -1,26 +1,24 @@
-from typing import Callable, Generic, TypedDict, TypeVar
-
-T = TypeVar("T")
+from typing import Any, Callable, TypedDict
 
 
 def pct(part: int, whole: int) -> str:
     return "0.0%" if whole == 0 else f"{(part / whole) * 100:.1f}%"
 
 
-class Report(TypedDict, Generic[T], total=False):
+class Report(TypedDict, total=False):
     count: int
     pct: str
-    items: list[T]
+    items: list[Any]
 
 
 def report_for(
-    docs: list[T],
+    docs: list[Any],
     *,
-    where: Callable[[T], bool],
+    where: Callable[[Any], bool],
     show: int = 20,
-) -> Report[T]:
+) -> Report:
     items = list(filter(where, docs))
-    report = Report[T](
+    report = Report(
         count=len(items),
         pct=pct(len(items), len(docs)),
     )

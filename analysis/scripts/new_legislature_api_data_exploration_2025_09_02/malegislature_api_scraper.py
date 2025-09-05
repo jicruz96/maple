@@ -127,7 +127,7 @@ class CommitteeModel(MALegislatureAPIModelWithExtraScrapableDetails):
     Hearings: ScrapableField[list[Hearing]]
 
     @property
-    def id(self) -> str:
+    def cache_id(self) -> str:
         if self.Details:
             return self.Details
         if self.CommitteeCode:
@@ -154,7 +154,7 @@ class CommitteeVote(MALegislatureAPIModel):
     Vote: list[CommitteeVoteRecord] | None = None
 
     @property
-    def id(self) -> str:
+    def cache_id(self) -> str:
         if not self.Bill:
             raise UncomputableIdError(f"{self}")
         return f"{self.Bill.id}-{self.Date.isoformat()}"
@@ -194,7 +194,7 @@ class RollCall(MALegislatureAPIModelWithExtraScrapableDetails):
     DownloadUrl: ScrapableField[str]
 
     @property
-    def id(self) -> str:
+    def cache_id(self) -> str:
         return f"{self.GeneralCourtNumber}-{self.RollCallNumber}"
 
 
@@ -221,7 +221,7 @@ class Amendment(MALegislatureAPIModelWithExtraScrapableDetails):
         return f"{self.BASE_URL}/api/GeneralCourts/{self.GeneralCourtNumber}/Documents/{self.ParentBillNumber}/Branches/{self.Branch}/Amendments/{self.AmendmentNumber}"
 
     @property
-    def id(self) -> str:
+    def cache_id(self) -> str:
         if self.Details:
             return self.Details
         if self.ParentBillNumber and self.Branch and self.AmendmentNumber:
@@ -253,7 +253,7 @@ class Document(MALegislatureAPIModelWithExtraScrapableDetails):
     document_history: ScrapableField[list[DocumentHistoryAction]]
 
     @property
-    def id(self) -> str:
+    def cache_id(self) -> str:
         if self.Details:
             return self.Details
         if self.BillNumber:
@@ -363,7 +363,7 @@ class GeneralLawBase(MALegislatureAPIModelWithExtraScrapableDetails):
     Name: ScrapableField[str]
 
     @property
-    def id(self) -> str:
+    def cache_id(self) -> str:
         if self.Details:
             return self.Details
         if self.Code:
@@ -390,7 +390,7 @@ class GeneralLawChapter(GeneralLawBase):
     Sections: ScrapableField[list[GeneralLawSection]]
 
 
-class GeneralLawSection(MALegislatureAPIModelWithExtraScrapableDetails):
+class GeneralLawSection(GeneralLawBase):
     ChapterCode: str | None = None
 
     IsRepealed: ScrapableField[bool]
@@ -412,7 +412,7 @@ class JournalBase(MALegislatureAPIModel):
     JournalSessionDate: str | None = None
 
     @property
-    def id(self) -> str:
+    def cache_id(self) -> str:
         if self.Details:
             return self.Details
         jc = str(self.GeneralCourtNumber)
@@ -454,7 +454,7 @@ class Report(MALegislatureAPIModel):
     DownloadUrl: str | None = None
 
     @property
-    def id(self) -> str:
+    def cache_id(self) -> str:
         return str(self.Date.date())
 
 
@@ -480,7 +480,7 @@ class SessionLaw(MALegislatureAPIModel):
     OriginBill: Document | None = None
 
     @property
-    def id(self) -> str:
+    def cache_id(self) -> str:
         if self.ChapterNumber:
             return f"{self.Year}-{self.ChapterNumber}"
         if self.Title:
