@@ -1,4 +1,4 @@
-from typing import Any, Callable, TypedDict
+from typing import Any, Callable, Sequence, TypedDict
 
 
 def pct(part: int, whole: int) -> str:
@@ -12,7 +12,7 @@ class Report(TypedDict, total=False):
 
 
 def report_for(
-    docs: list[Any],
+    docs: Sequence[Any],
     *,
     where: Callable[[Any], bool],
     show: int = 20,

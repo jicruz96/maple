@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 from enum import Enum
 from functools import cache
 from typing import Sequence
@@ -14,15 +15,15 @@ from tqdm import tqdm
 from typing_extensions import Self
 
 from ji_async_http_utils.httpx import request, run_in_lifespan
-from .utils.base_model import BaseModel
-from .utils.base_model import (
-    ScrapeableApiModel,
+from .utils.base_model import BaseModel, CacheableModel
+from pydantic_scrapeable_api_model import (
+    ScrapeableField,
+    ScrapeableApiModel as PydanticScrapeableApiModel,
 )
-from pydantic_scrapeable_api_model import ScrapeableField
 from pydantic_cacheable_model import CacheKeyComputationError
 
 
-class MALegislatureAPIModel(ScrapeableApiModel):
+class MALegislatureAPIModel(PydanticScrapeableApiModel, CacheableModel):
     CACHE_ROOT = "malegislature-api-cache"
     BASE_URL = "https://malegislature.gov"
 
@@ -43,18 +44,18 @@ class LegislativeMember(MALegislatureAPIModelWithExtraScrapableDetails):
     MemberCode: CacheKey[str]
     GeneralCourtNumber: int
 
-    Name: ScrapeableField[str]
-    LeadershipPosition: ScrapeableField[str]
-    Branch: ScrapeableField[str]
-    District: ScrapeableField[str]
-    Party: ScrapeableField[str]
-    EmailAddress: ScrapeableField[str]
-    RoomNumber: ScrapeableField[str]
-    PhoneNumber: ScrapeableField[str]
-    FaxNumber: ScrapeableField[str]
-    SponsoredBills: ScrapeableField[list[Document]]
-    CoSponsoredBills: ScrapeableField[list[Document]]
-    Committees: ScrapeableField[list[CommitteeModel]]
+    Name: ScrapeableField[str | None]
+    LeadershipPosition: ScrapeableField[str | None]
+    Branch: ScrapeableField[str | None]
+    District: ScrapeableField[str | None]
+    Party: ScrapeableField[str | None]
+    EmailAddress: ScrapeableField[str | None]
+    RoomNumber: ScrapeableField[str | None]
+    PhoneNumber: ScrapeableField[str | None]
+    FaxNumber: ScrapeableField[str | None]
+    SponsoredBills: ScrapeableField[list[Document] | None]
+    CoSponsoredBills: ScrapeableField[list[Document] | None]
+    Committees: ScrapeableField[list[CommitteeModel] | None]
 
 
 class BillSponsorTypeEnum(Enum):
@@ -95,18 +96,18 @@ class CommitteeModel(MALegislatureAPIModelWithExtraScrapableDetails):
     GeneralCourtNumber: int | None
     CommitteeCode: str | None = None
 
-    FullName: ScrapeableField[str]
-    ShortName: ScrapeableField[str]
-    Description: ScrapeableField[str]
-    Branch: ScrapeableField[str]
-    SenateChairperson: ScrapeableField[LegislativeMember]
-    HouseChairperson: ScrapeableField[LegislativeMember]
-    DocumentsBeforeCommittee: ScrapeableField[list[Document]]
-    ReportedOutDocuments: ScrapeableField[list[Document]]
-    Hearings: ScrapeableField[list[Hearing]]
+    FullName: ScrapeableField[str | None]
+    ShortName: ScrapeableField[str | None]
+    Description: ScrapeableField[str | None]
+    Branch: ScrapeableField[str | None]
+    SenateChairperson: ScrapeableField[LegislativeMember | None]
+    HouseChairperson: ScrapeableField[LegislativeMember | None]
+    DocumentsBeforeCommittee: ScrapeableField[list[Document] | None]
+    ReportedOutDocuments: ScrapeableField[list[Document] | None]
+    Hearings: ScrapeableField[list[Hearing] | None]
 
     @property
-    def cache_id(self) -> str:
+    def cache_key(self) -> str:
         if self.Details:
             return self.Details
         if self.CommitteeCode:
@@ -133,7 +134,7 @@ class CommitteeVote(MALegislatureAPIModel):
     Vote: list[CommitteeVoteRecord] | None = None
 
     @property
-    def cache_id(self) -> str:
+    def cache_key(self) -> str:
         if not self.Bill:
             raise CacheKeyComputationError(f"{self}")
         return f"{self.Bill.id}-{self.Date.isoformat()}"
@@ -165,15 +166,15 @@ class RollCall(MALegislatureAPIModelWithExtraScrapableDetails):
     GeneralCourtNumber: int
     RollCallNumber: int
 
-    Branch: ScrapeableField[str]
-    QuestionMotion: ScrapeableField[str]
-    Yeas: ScrapeableField[list[LegislativeMember]]
-    Nays: ScrapeableField[list[LegislativeMember]]
-    Absent: ScrapeableField[list[LegislativeMember]]
-    DownloadUrl: ScrapeableField[str]
+    Branch: ScrapeableField[str | None]
+    QuestionMotion: ScrapeableField[str | None]
+    Yeas: ScrapeableField[list[LegislativeMember] | None]
+    Nays: ScrapeableField[list[LegislativeMember] | None]
+    Absent: ScrapeableField[list[LegislativeMember] | None]
+    DownloadUrl: ScrapeableField[str | None]
 
     @property
-    def cache_id(self) -> str:
+    def cache_key(self) -> str:
         return f"{self.GeneralCourtNumber}-{self.RollCallNumber}"
 
 
@@ -183,15 +184,15 @@ class Amendment(MALegislatureAPIModelWithExtraScrapableDetails):
     ParentBillNumber: str | None = None
     Branch: str | None = None
 
-    Bill: ScrapeableField[Document]
-    Sponsor: ScrapeableField[BillSponsorSummary]
-    Category: ScrapeableField[str]
-    Action: ScrapeableField[str]
-    RollCall: ScrapeableField[list[RollCall]]
-    Title: ScrapeableField[str]
-    RedraftNumber: ScrapeableField[int]
-    IsFurther: ScrapeableField[bool]
-    Text: ScrapeableField[str]
+    Bill: ScrapeableField[Document | None]
+    Sponsor: ScrapeableField[BillSponsorSummary | None]
+    Category: ScrapeableField[str | None]
+    Action: ScrapeableField[str | None]
+    RollCall: ScrapeableField[list[RollCall] | None]
+    Title: ScrapeableField[str | None]
+    RedraftNumber: ScrapeableField[int | None]
+    IsFurther: ScrapeableField[bool | None]
+    Text: ScrapeableField[str | None]
 
     @property
     def detail_url(self) -> str | None:
@@ -200,7 +201,7 @@ class Amendment(MALegislatureAPIModelWithExtraScrapableDetails):
         return f"{self.BASE_URL}/api/GeneralCourts/{self.GeneralCourtNumber}/Documents/{self.ParentBillNumber}/Branches/{self.Branch}/Amendments/{self.AmendmentNumber}"
 
     @property
-    def cache_id(self) -> str:
+    def cache_key(self) -> str:
         if self.Details:
             return self.Details
         if self.ParentBillNumber and self.Branch and self.AmendmentNumber:
@@ -219,22 +220,22 @@ class Document(MALegislatureAPIModelWithExtraScrapableDetails):
     DocketNumber: str | None = None
     Title: str | None = None
     BillHistory: str | None = None
-    PrimarySponsor: ScrapeableField[BillSponsorSummary]
-    Cosponsors: ScrapeableField[list[BillSponsorSummary]]
-    JointSponsor: ScrapeableField[BillSponsorSummary]
-    LegislationTypeName: ScrapeableField[str]
-    Pinslip: ScrapeableField[str]
-    DocumentText: ScrapeableField[str]
-    EmergencyPreamble: ScrapeableField[str]
-    RollCalls: ScrapeableField[list[RollCall]]
-    Attachments: ScrapeableField[list[Attachment]]
-    CommitteeRecommendations: ScrapeableField[list[CommitteeRecommendation]]
-    Amendments: ScrapeableField[list[Amendment]]
+    PrimarySponsor: ScrapeableField[BillSponsorSummary | None]
+    Cosponsors: ScrapeableField[list[BillSponsorSummary] | None]
+    JointSponsor: ScrapeableField[BillSponsorSummary | None]
+    LegislationTypeName: ScrapeableField[str | None]
+    Pinslip: ScrapeableField[str | None]
+    DocumentText: ScrapeableField[str | None]
+    EmergencyPreamble: ScrapeableField[str | None]
+    RollCalls: ScrapeableField[list[RollCall] | None]
+    Attachments: ScrapeableField[list[Attachment] | None]
+    CommitteeRecommendations: ScrapeableField[list[CommitteeRecommendation] | None]
+    Amendments: ScrapeableField[list[Amendment] | None]
 
-    document_history: ScrapeableField[list[DocumentHistoryAction]]
+    document_history: ScrapeableField[list[DocumentHistoryAction] | None]
 
     @property
-    def cache_id(self) -> str:
+    def cache_key(self) -> str:
         if self.Details:
             return self.Details
         if self.BillNumber:
@@ -295,19 +296,21 @@ class Hearing(MALegislatureAPIModelWithExtraScrapableDetails):
     EventId: CacheKey[int]
 
     # scraped from hearing detail API
-    Name: ScrapeableField[str]
-    Status: ScrapeableField[str]
-    EventDate: ScrapeableField[datetime]
-    StartTime: ScrapeableField[datetime]
-    Description: ScrapeableField[str]
-    HearingHost: ScrapeableField[CommitteeModel]
-    HearingAgendas: ScrapeableField[list[AgendaItem]]
-    RescheduledHearing: ScrapeableField[list[HearingRescheduled] | HearingRescheduled]
-    Location: ScrapeableField[LocationModel]
+    Name: ScrapeableField[str | None]
+    Status: ScrapeableField[str | None]
+    EventDate: ScrapeableField[datetime | None]
+    StartTime: ScrapeableField[datetime | None]
+    Description: ScrapeableField[str | None]
+    HearingHost: ScrapeableField[CommitteeModel | None]
+    HearingAgendas: ScrapeableField[list[AgendaItem] | None]
+    RescheduledHearing: ScrapeableField[
+        list[HearingRescheduled] | HearingRescheduled | None
+    ]
+    Location: ScrapeableField[LocationModel | None]
 
     # scraped from hearing detail HTML page
-    document_urls: ScrapeableField[list[str]]
-    testimony_instructions: ScrapeableField[str]
+    document_urls: ScrapeableField[list[str] | None]
+    testimony_instructions: ScrapeableField[str | None]
 
     async def scrape_detail(self, *, use_cache: bool = True) -> None:
         await self.scrape_testimony_instructions()  # NOTE: hack
@@ -343,10 +346,10 @@ class GeneralCourt(MALegislatureAPIModel):
 
 class GeneralLawBase(MALegislatureAPIModelWithExtraScrapableDetails):
     Code: str | None = None
-    Name: ScrapeableField[str]
+    Name: ScrapeableField[str | None]
 
     @property
-    def cache_id(self) -> str:
+    def cache_key(self) -> str:
         if self.Details:
             return self.Details
         if self.Code:
@@ -359,27 +362,27 @@ class GeneralLawBase(MALegislatureAPIModelWithExtraScrapableDetails):
 class GeneralLawPart(GeneralLawBase):
     list_endpoint = "/api/Parts"
 
-    FirstChapter: ScrapeableField[int]
-    LastChapter: ScrapeableField[int]
-    Chapters: ScrapeableField[list[GeneralLawChapter]]
+    FirstChapter: ScrapeableField[int | None]
+    LastChapter: ScrapeableField[int | None]
+    Chapters: ScrapeableField[list[GeneralLawChapter] | None]
 
 
 class GeneralLawChapter(GeneralLawBase):
     list_endpoint = "/api/Chapters"
 
-    IsRepealed: ScrapeableField[bool]
-    StrickenText: ScrapeableField[str]
-    Part: ScrapeableField[GeneralLawPart]
-    Sections: ScrapeableField[list[GeneralLawSection]]
+    IsRepealed: ScrapeableField[bool | None]
+    StrickenText: ScrapeableField[str | None]
+    Part: ScrapeableField[GeneralLawPart | None]
+    Sections: ScrapeableField[list[GeneralLawSection] | None]
 
 
 class GeneralLawSection(GeneralLawBase):
     ChapterCode: str | None = None
 
-    IsRepealed: ScrapeableField[bool]
-    Text: ScrapeableField[str]
-    Chapter: ScrapeableField[GeneralLawChapter]
-    Part: ScrapeableField[GeneralLawPart]
+    IsRepealed: ScrapeableField[bool | None]
+    Text: ScrapeableField[str | None]
+    Chapter: ScrapeableField[GeneralLawChapter | None]
+    Part: ScrapeableField[GeneralLawPart | None]
 
 
 class DocumentHistoryAction(BaseModel):
@@ -395,7 +398,7 @@ class JournalBase(MALegislatureAPIModel):
     JournalSessionDate: str | None = None
 
     @property
-    def cache_id(self) -> str:
+    def cache_key(self) -> str:
         if self.Details:
             return self.Details
         jc = str(self.GeneralCourtNumber)
@@ -405,6 +408,20 @@ class JournalBase(MALegislatureAPIModel):
             return f"{jc}-{jsd}-{ij}"
         raise CacheKeyComputationError(
             f"Could not compute unique Id for {type(self).__name__} {self}"
+        )
+
+    @classmethod
+    async def scrape_list(
+        cls,
+        check_api: bool | str,
+        *,
+        use_cache: bool | str,
+        raise_on_status_except_for: Sequence[int] | None = None,
+    ) -> Sequence[Self]:
+        return await super().scrape_list(
+            check_api,
+            use_cache=use_cache,
+            raise_on_status_except_for=raise_on_status_except_for or [500],
         )
 
 
@@ -419,8 +436,8 @@ class HouseJournal(JournalBase):
 class SenateJournal(JournalBase, MALegislatureAPIModelWithExtraScrapableDetails):
     list_endpoint = "/api/SenateJournals"
 
-    DownloadUrl: ScrapeableField[str]
-    SessionDate: ScrapeableField[datetime]
+    DownloadUrl: ScrapeableField[str | None]
+    SessionDate: ScrapeableField[datetime | None]
 
 
 class Leadership(MALegislatureAPIModel):
@@ -437,7 +454,7 @@ class Report(MALegislatureAPIModel):
     DownloadUrl: str | None = None
 
     @property
-    def cache_id(self) -> str:
+    def cache_key(self) -> str:
         return str(self.Date.date())
 
 
@@ -463,7 +480,7 @@ class SessionLaw(MALegislatureAPIModel):
     OriginBill: Document | None = None
 
     @property
-    def cache_id(self) -> str:
+    def cache_key(self) -> str:
         if self.ChapterNumber:
             return f"{self.Year}-{self.ChapterNumber}"
         if self.Title:
@@ -477,7 +494,7 @@ class City(MALegislatureAPIModel):
     list_endpoint = "/api/Documents/SupportedCities"
 
     name: CacheKey[str]
-    documents: ScrapeableField[list[Document]]
+    documents: ScrapeableField[list[Document] | None]
 
     @classmethod
     def response_to_models(cls, resp: httpx.Response) -> Sequence[Self]:
@@ -500,25 +517,12 @@ class City(MALegislatureAPIModel):
 
 @run_in_lifespan
 async def scrape_malegislature_api() -> None:
+    # Ensure verbose logging for this scraper run
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger().setLevel(logging.INFO)
+    await MALegislatureAPIModel.run(use_cache=True, check_api=True)
     await Leadership.scrape_all("/api/Branches/House/Leadership")
     await Leadership.scrape_all("/api/Branches/Senate/Leadership")
-    models: list[type[MALegislatureAPIModel]] = [
-        City,
-        CommitteeModel,
-        Document,
-        GeneralLawChapter,
-        GeneralLawPart,
-        Hearing,
-        HouseJournal,
-        LegislativeMember,
-        Report,
-        SenateJournal,
-        Session,
-        SessionLaw,
-        SpecialEvent,
-    ]
-    for model in models:
-        await model.scrape_all(check_api=True)
 
     # get votes
     vote_endpoints: set[str] = set()
