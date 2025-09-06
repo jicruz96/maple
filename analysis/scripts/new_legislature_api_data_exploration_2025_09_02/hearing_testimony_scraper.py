@@ -8,13 +8,13 @@ from typing import Literal
 from urllib.parse import parse_qs, urlparse
 
 from pydantic import Field
-from pydantic_cacheable_model import CacheId
+from pydantic_cacheable_model import CacheKey
 from rich import print
 from tqdm import tqdm
 
 from .ai import LLMInputModel, LLMOutputModel, parse_all
 from .malegislature_api_scraper import Hearing
-from ji_async_http_utils.httpx import http_get, run_in_lifespan
+from ji_async_http_utils.httpx import request, run_in_lifespan
 from .utils.base_model import CacheableModel
 from .utils.doc_reader import DocumentRef
 from .utils.reports import report_for
@@ -124,7 +124,7 @@ class HearingDocument(TaggableModel, CacheableModel, LLMInputModel):
     }
 
     url: str = Field(repr=False)
-    attachment_id: CacheId[int]
+    attachment_id: CacheKey[int]
     title: str
     file_extension: str
 
@@ -199,14 +199,14 @@ Text:
 
     async def download(self, overwrite: bool = False) -> None:
         if overwrite or not os.path.exists(self.filepath):
-            response = await http_get(self.url)
+            response = await request(self.url)
             content = response.read()
             with open(self.filepath, "wb") as fp:
                 fp.write(content)
 
 
 async def get_hearing_documents(*, check_api: bool, use_cache: bool):
-    hearings = await Hearing.fetch_all(check_api=check_api, use_cache=use_cache)
+    hearings = await Hearing.scrape_list(check_api=check_api, use_cache=use_cache)
     docs: list[HearingDocument] = []
     for hearing in hearings:
         if isinstance(hearing.document_urls, list):

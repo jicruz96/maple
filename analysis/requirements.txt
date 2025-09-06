@@ -34,7 +34,7 @@ ipython==8.4.0
 ipython-genutils==0.2.0
 ipywidgets==7.7.0
 jedi==0.18.1
-ji-async-http-utils==0.1.1
+ji-async-http-utils==5.0.0
 jinja2==3.1.2
 jiter==0.10.0
 jsonschema==4.6.0
@@ -77,8 +77,9 @@ ptyprocess==0.7.0
 pure-eval==0.2.2
 pycparser==2.21
 pydantic==2.11.7
-pydantic-cacheable-model==1.0.2
+pydantic-cacheable-model==2.0.1
 pydantic-core==2.33.2
+pydantic-scrapeable-api-model==0.1.0
 pygments==2.19.2
 pyparsing==3.0.9
 pypdf2==3.0.1

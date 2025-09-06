@@ -59,11 +59,11 @@ def see_parsed_testimonies() -> None:
 @run_in_lifespan
 async def committee_vote_report():
     # 1) Load cached data
-    docs = await Document.fetch_all(check_api=False, use_cache=True)
-    votes = await CommitteeVote.fetch_all(check_api=False, use_cache=True)
+    docs = await Document.scrape_list(check_api=False, use_cache=True)
+    votes = await CommitteeVote.scrape_list(check_api=False, use_cache=True)
     members_by_id = {
         m.id: m.Name if isinstance(m.Name, str) else m.id
-        for m in await LegislativeMember.fetch_all(check_api=False, use_cache=True)
+        for m in await LegislativeMember.scrape_list(check_api=False, use_cache=True)
     }
 
     # 2) Number of unique committee recommendations
