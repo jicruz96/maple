@@ -1,26 +1,27 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
-import logging
 from enum import Enum
-from functools import cache
 from typing import Sequence
 from urllib.parse import urljoin
 
-import httpx
-from bs4 import BeautifulSoup, Tag
+import aiohttp
+from bs4 import BeautifulSoup
+from bs4.element import Tag
 from pydantic import Field
 from pydantic_cacheable_model import CacheKey
-from tqdm import tqdm
 from typing_extensions import Self
 
-from ji_async_http_utils.httpx import request, run_in_lifespan
+from ji_async_http_utils.aiohttp import request
 from .utils.base_model import BaseModel, CacheableModel
 from pydantic_scrapeable_api_model import (
-    ScrapeableField,
+    CustomScrapeField,
+    DetailField,
     ScrapeableApiModel as PydanticScrapeableApiModel,
 )
 from pydantic_cacheable_model import CacheKeyComputationError
+from async_lru import alru_cache
 
 
 class MALegislatureAPIModel(PydanticScrapeableApiModel, CacheableModel):
@@ -44,18 +45,18 @@ class LegislativeMember(MALegislatureAPIModelWithExtraScrapableDetails):
     MemberCode: CacheKey[str]
     GeneralCourtNumber: int
 
-    Name: ScrapeableField[str | None]
-    LeadershipPosition: ScrapeableField[str | None]
-    Branch: ScrapeableField[str | None]
-    District: ScrapeableField[str | None]
-    Party: ScrapeableField[str | None]
-    EmailAddress: ScrapeableField[str | None]
-    RoomNumber: ScrapeableField[str | None]
-    PhoneNumber: ScrapeableField[str | None]
-    FaxNumber: ScrapeableField[str | None]
-    SponsoredBills: ScrapeableField[list[Document] | None]
-    CoSponsoredBills: ScrapeableField[list[Document] | None]
-    Committees: ScrapeableField[list[CommitteeModel] | None]
+    Name: DetailField[str | None]
+    LeadershipPosition: DetailField[str | None]
+    Branch: DetailField[str | None]
+    District: DetailField[str | None]
+    Party: DetailField[str | None]
+    EmailAddress: DetailField[str | None]
+    RoomNumber: DetailField[str | None]
+    PhoneNumber: DetailField[str | None]
+    FaxNumber: DetailField[str | None]
+    SponsoredBills: DetailField[list[Document] | None]
+    CoSponsoredBills: DetailField[list[Document] | None]
+    Committees: DetailField[list[CommitteeModel] | None]
 
 
 class BillSponsorTypeEnum(Enum):
@@ -96,15 +97,15 @@ class CommitteeModel(MALegislatureAPIModelWithExtraScrapableDetails):
     GeneralCourtNumber: int | None
     CommitteeCode: str | None = None
 
-    FullName: ScrapeableField[str | None]
-    ShortName: ScrapeableField[str | None]
-    Description: ScrapeableField[str | None]
-    Branch: ScrapeableField[str | None]
-    SenateChairperson: ScrapeableField[LegislativeMember | None]
-    HouseChairperson: ScrapeableField[LegislativeMember | None]
-    DocumentsBeforeCommittee: ScrapeableField[list[Document] | None]
-    ReportedOutDocuments: ScrapeableField[list[Document] | None]
-    Hearings: ScrapeableField[list[Hearing] | None]
+    FullName: DetailField[str | None]
+    ShortName: DetailField[str | None]
+    Description: DetailField[str | None]
+    Branch: DetailField[str | None]
+    SenateChairperson: DetailField[LegislativeMember | None]
+    HouseChairperson: DetailField[LegislativeMember | None]
+    DocumentsBeforeCommittee: DetailField[list[Document] | None]
+    ReportedOutDocuments: DetailField[list[Document] | None]
+    Hearings: DetailField[list[Hearing] | None]
 
     @property
     def cache_key(self) -> str:
@@ -166,12 +167,12 @@ class RollCall(MALegislatureAPIModelWithExtraScrapableDetails):
     GeneralCourtNumber: int
     RollCallNumber: int
 
-    Branch: ScrapeableField[str | None]
-    QuestionMotion: ScrapeableField[str | None]
-    Yeas: ScrapeableField[list[LegislativeMember] | None]
-    Nays: ScrapeableField[list[LegislativeMember] | None]
-    Absent: ScrapeableField[list[LegislativeMember] | None]
-    DownloadUrl: ScrapeableField[str | None]
+    Branch: DetailField[str | None]
+    QuestionMotion: DetailField[str | None]
+    Yeas: DetailField[list[LegislativeMember] | None]
+    Nays: DetailField[list[LegislativeMember] | None]
+    Absent: DetailField[list[LegislativeMember] | None]
+    DownloadUrl: DetailField[str | None]
 
     @property
     def cache_key(self) -> str:
@@ -184,15 +185,15 @@ class Amendment(MALegislatureAPIModelWithExtraScrapableDetails):
     ParentBillNumber: str | None = None
     Branch: str | None = None
 
-    Bill: ScrapeableField[Document | None]
-    Sponsor: ScrapeableField[BillSponsorSummary | None]
-    Category: ScrapeableField[str | None]
-    Action: ScrapeableField[str | None]
-    RollCall: ScrapeableField[list[RollCall] | None]
-    Title: ScrapeableField[str | None]
-    RedraftNumber: ScrapeableField[int | None]
-    IsFurther: ScrapeableField[bool | None]
-    Text: ScrapeableField[str | None]
+    Bill: DetailField[Document | None]
+    Sponsor: DetailField[BillSponsorSummary | None]
+    Category: DetailField[str | None]
+    Action: DetailField[str | None]
+    RollCall: DetailField[list[RollCall] | None]
+    Title: DetailField[str | None]
+    RedraftNumber: DetailField[int | None]
+    IsFurther: DetailField[bool | None]
+    Text: DetailField[str | None]
 
     @property
     def detail_url(self) -> str | None:
@@ -220,19 +221,21 @@ class Document(MALegislatureAPIModelWithExtraScrapableDetails):
     DocketNumber: str | None = None
     Title: str | None = None
     BillHistory: str | None = None
-    PrimarySponsor: ScrapeableField[BillSponsorSummary | None]
-    Cosponsors: ScrapeableField[list[BillSponsorSummary] | None]
-    JointSponsor: ScrapeableField[BillSponsorSummary | None]
-    LegislationTypeName: ScrapeableField[str | None]
-    Pinslip: ScrapeableField[str | None]
-    DocumentText: ScrapeableField[str | None]
-    EmergencyPreamble: ScrapeableField[str | None]
-    RollCalls: ScrapeableField[list[RollCall] | None]
-    Attachments: ScrapeableField[list[Attachment] | None]
-    CommitteeRecommendations: ScrapeableField[list[CommitteeRecommendation] | None]
-    Amendments: ScrapeableField[list[Amendment] | None]
+    PrimarySponsor: DetailField[BillSponsorSummary | None]
+    Cosponsors: DetailField[list[BillSponsorSummary] | None]
+    JointSponsor: DetailField[BillSponsorSummary | None]
+    LegislationTypeName: DetailField[str | None]
+    Pinslip: DetailField[str | None]
+    DocumentText: DetailField[str | None]
+    EmergencyPreamble: DetailField[str | None]
+    RollCalls: DetailField[list[RollCall] | None]
+    Attachments: DetailField[list[Attachment] | None]
+    CommitteeRecommendations: DetailField[list[CommitteeRecommendation] | None]
+    Amendments: DetailField[list[Amendment] | None]
 
-    document_history: ScrapeableField[list[DocumentHistoryAction] | None]
+    document_history: DetailField[list[DocumentHistoryAction]] = CustomScrapeField(
+        "scrape_document_history"
+    )
 
     @property
     def cache_key(self) -> str:
@@ -249,17 +252,20 @@ class Document(MALegislatureAPIModelWithExtraScrapableDetails):
             f"Could not compute unique Id for Document {self}"
         )
 
-    async def scrape_document_history(self) -> None:
+    async def scrape_document_history(
+        self, session: aiohttp.ClientSession
+    ) -> list[DocumentHistoryAction]:
         if self.BillHistory and (
-            resp := await request(
-                self.BillHistory,
+            resp := await self.request(
+                id="scrape_document_history",
+                url=self.BillHistory,
                 headers={"Accept": "application/json"},
                 raise_on_status_except_for=[404],
+                session=session,
             )
         ):
-            self.document_history = [DocumentHistoryAction(**i) for i in resp.json()]
-        else:
-            self.document_history = []
+            return [DocumentHistoryAction(**i) for i in (await resp.json())]
+        return []
 
 
 class AgendaItem(BaseModel):
@@ -285,9 +291,11 @@ class LocationModel(BaseModel):
     ZipCode: str | None = None
 
 
-@cache
-async def get_soup(url: str) -> BeautifulSoup:
-    return BeautifulSoup((await request(url)).text, "html.parser")
+@alru_cache(maxsize=1)
+async def get_soup(url: str, session: aiohttp.ClientSession) -> BeautifulSoup:
+    return BeautifulSoup(
+        (await (await request(url=url, session=session)).read()).decode(), "html.parser"
+    )
 
 
 class Hearing(MALegislatureAPIModelWithExtraScrapableDetails):
@@ -296,45 +304,60 @@ class Hearing(MALegislatureAPIModelWithExtraScrapableDetails):
     EventId: CacheKey[int]
 
     # scraped from hearing detail API
-    Name: ScrapeableField[str | None]
-    Status: ScrapeableField[str | None]
-    EventDate: ScrapeableField[datetime | None]
-    StartTime: ScrapeableField[datetime | None]
-    Description: ScrapeableField[str | None]
-    HearingHost: ScrapeableField[CommitteeModel | None]
-    HearingAgendas: ScrapeableField[list[AgendaItem] | None]
-    RescheduledHearing: ScrapeableField[
+    Name: DetailField[str | None]
+    Status: DetailField[str | None]
+    EventDate: DetailField[datetime | None]
+    StartTime: DetailField[datetime | None]
+    Description: DetailField[str | None]
+    HearingHost: DetailField[CommitteeModel | None]
+    HearingAgendas: DetailField[list[AgendaItem] | None]
+    RescheduledHearing: DetailField[
         list[HearingRescheduled] | HearingRescheduled | None
     ]
-    Location: ScrapeableField[LocationModel | None]
+    Location: DetailField[LocationModel | None]
 
     # scraped from hearing detail HTML page
-    document_urls: ScrapeableField[list[str] | None]
-    testimony_instructions: ScrapeableField[str | None]
+    document_urls: DetailField[list[str]] = CustomScrapeField("scrape_document_urls")
+    testimony_instructions: DetailField[str] = CustomScrapeField(
+        "scrape_testimony_instructions",
+        # alias="testimony_instructions"
+    )
 
-    async def scrape_detail(self, *, use_cache: bool = True) -> None:
-        await self.scrape_testimony_instructions()  # NOTE: hack
-        await super().scrape_detail(use_cache=use_cache)
+    @property
+    def webpage_url(self) -> str:
+        return f"{self.BASE_URL}/Events/Hearings/Detail/{self.EventId}"
 
-    async def scrape_document_urls(self) -> None:
+    async def scrape_document_urls(self, session: aiohttp.ClientSession) -> list[str]:
         """Scrape hearing document urls from the hearing details page.
 
         Assumptions:
         - Testimony links appear in the first column of the table inside <div id="documentsSection">
         """
-        soup = await get_soup(f"{self.BASE_URL}/Events/Hearings/Detail/{self.EventId}")
+        soup = await get_soup(self.webpage_url, session=session)
         if docs_div := soup.find(id="documentsSection"):
             assert isinstance(docs_div, Tag)
-            self.document_urls = [
+            return [
                 urljoin(self.BASE_URL, str(a.get("href") or ""))
                 for a in docs_div.select(  # pyright: ignore[reportUnknownMemberType]
                     "table.agendaTable tbody tr td:first-child a[href]"
                 )
             ]
+        return []
 
-    async def scrape_testimony_instructions(self) -> None:
-        # breakpoint()
-        pass
+    async def scrape_testimony_instructions(
+        self, session: aiohttp.ClientSession
+    ) -> str | bytes:
+        return (await get_soup(self.webpage_url, session=session)).prettify()  # type: ignore
+
+    async def scrape_detail(
+        self, *, use_cache: bool = True, session: aiohttp.ClientSession
+    ) -> None:
+        await super().scrape_detail(
+            use_cache=use_cache,
+            session=session,
+        )
+        await self.scrape_testimony_instructions(session)
+        self.cache()
 
 
 class GeneralCourt(MALegislatureAPIModel):
@@ -346,7 +369,7 @@ class GeneralCourt(MALegislatureAPIModel):
 
 class GeneralLawBase(MALegislatureAPIModelWithExtraScrapableDetails):
     Code: str | None = None
-    Name: ScrapeableField[str | None]
+    Name: DetailField[str | None]
 
     @property
     def cache_key(self) -> str:
@@ -362,27 +385,27 @@ class GeneralLawBase(MALegislatureAPIModelWithExtraScrapableDetails):
 class GeneralLawPart(GeneralLawBase):
     list_endpoint = "/api/Parts"
 
-    FirstChapter: ScrapeableField[int | None]
-    LastChapter: ScrapeableField[int | None]
-    Chapters: ScrapeableField[list[GeneralLawChapter] | None]
+    FirstChapter: DetailField[int | None]
+    LastChapter: DetailField[int | None]
+    Chapters: DetailField[list[GeneralLawChapter] | None]
 
 
 class GeneralLawChapter(GeneralLawBase):
     list_endpoint = "/api/Chapters"
 
-    IsRepealed: ScrapeableField[bool | None]
-    StrickenText: ScrapeableField[str | None]
-    Part: ScrapeableField[GeneralLawPart | None]
-    Sections: ScrapeableField[list[GeneralLawSection] | None]
+    IsRepealed: DetailField[bool | None]
+    StrickenText: DetailField[str | None]
+    Part: DetailField[GeneralLawPart | None]
+    Sections: DetailField[list[GeneralLawSection] | None]
 
 
 class GeneralLawSection(GeneralLawBase):
     ChapterCode: str | None = None
 
-    IsRepealed: ScrapeableField[bool | None]
-    Text: ScrapeableField[str | None]
-    Chapter: ScrapeableField[GeneralLawChapter | None]
-    Part: ScrapeableField[GeneralLawPart | None]
+    IsRepealed: DetailField[bool | None]
+    Text: DetailField[str | None]
+    Chapter: DetailField[GeneralLawChapter | None]
+    Part: DetailField[GeneralLawPart | None]
 
 
 class DocumentHistoryAction(BaseModel):
@@ -415,13 +438,17 @@ class JournalBase(MALegislatureAPIModel):
         cls,
         check_api: bool | str,
         *,
-        use_cache: bool | str,
+        use_cache: bool,
+        scrape_details: bool = True,
+        session: aiohttp.ClientSession | None = None,
         raise_on_status_except_for: Sequence[int] | None = None,
     ) -> Sequence[Self]:
         return await super().scrape_list(
             check_api,
             use_cache=use_cache,
+            scrape_details=scrape_details,
             raise_on_status_except_for=raise_on_status_except_for or [500],
+            session=session,
         )
 
 
@@ -436,8 +463,8 @@ class HouseJournal(JournalBase):
 class SenateJournal(JournalBase, MALegislatureAPIModelWithExtraScrapableDetails):
     list_endpoint = "/api/SenateJournals"
 
-    DownloadUrl: ScrapeableField[str | None]
-    SessionDate: ScrapeableField[datetime | None]
+    DownloadUrl: DetailField[str | None]
+    SessionDate: DetailField[datetime | None]
 
 
 class Leadership(MALegislatureAPIModel):
@@ -494,62 +521,83 @@ class City(MALegislatureAPIModel):
     list_endpoint = "/api/Documents/SupportedCities"
 
     name: CacheKey[str]
-    documents: ScrapeableField[list[Document] | None]
+    documents: DetailField[list[Document]] = CustomScrapeField("scrape_documents")
 
     @classmethod
-    def response_to_models(cls, resp: httpx.Response) -> Sequence[Self]:
-        return [cls(name=i) for i in resp.json()]  # pyright: ignore[reportCallIssue]
+    async def process_list_response(
+        cls, resp: aiohttp.ClientResponse
+    ) -> Sequence[Self]:
+        return [cls(name=i) for i in (await resp.json())]
 
-    async def scrape_documents(self) -> None:
+    async def scrape_documents(self) -> list[Document]:
         url = f"{self.BASE_URL}/api/Cities/{self.name}/Documents"
-        resp = await self.request(
-            id=self.id,
-            url=url,
-            headers={"Accept": "application/json"},
-            raise_on_status_except_for=[400, 404],
-        )
+        async with aiohttp.ClientSession() as session:
+            resp = await self.request(
+                id=self.id,
+                url=url,
+                headers={"Accept": "application/json"},
+                raise_on_status_except_for=[400, 404],
+                session=session,
+            )
+
         if resp is None:
-            self.documents = []
-            return
+            return []
 
-        self.documents = [Document(**i) for i in resp.json()]
+        return [Document(**i) for i in await resp.json()]
 
 
-@run_in_lifespan
 async def scrape_malegislature_api() -> None:
     # Ensure verbose logging for this scraper run
+    import logging
+
     logging.basicConfig(level=logging.INFO)
     logging.getLogger().setLevel(logging.INFO)
     await MALegislatureAPIModel.run(use_cache=True, check_api=True)
-    await Leadership.scrape_all("/api/Branches/House/Leadership")
-    await Leadership.scrape_all("/api/Branches/Senate/Leadership")
+    async with aiohttp.ClientSession() as session:
+        await Leadership.scrape_list(
+            "/api/Branches/House/Leadership",
+            use_cache=True,
+            session=session,
+        )
+        await Leadership.scrape_list(
+            "/api/Branches/Senate/Leadership",
+            use_cache=True,
+            session=session,
+        )
 
-    # get votes
-    vote_endpoints: set[str] = set()
-    for doc in await Document.scrape_list(check_api=False, use_cache=True):
-        if isinstance(doc.CommitteeRecommendations, list):
+        seen: set[str] = set()
+        successful = 0
+        for doc in await Document.scrape_list(
+            check_api=False, use_cache=True, session=session
+        ):
+            if not isinstance(doc.CommitteeRecommendations, list):
+                continue
             for rec in doc.CommitteeRecommendations:
                 if (
                     rec.Committee
                     and rec.Committee.CommitteeCode
                     and doc.BillNumber
                     and doc.GeneralCourtNumber
-                ):
-                    vote_endpoints.add(
-                        f"/api/Committees/{rec.Committee.CommitteeCode}/Documents/{doc.BillNumber}/CommitteeVotes"
+                    and (
+                        url
+                        := f"/api/Committees/{rec.Committee.CommitteeCode}/Documents/{doc.BillNumber}/CommitteeVotes"
                     )
+                    not in seen
+                ):
+                    seen.add(url)
+                    try:
+                        await CommitteeVote.scrape_list(
+                            url,
+                            use_cache=True,
+                            session=session,
+                        )
+                        successful += 1
+                    except aiohttp.ClientResponseError as exc:
+                        if exc.code != 400:
+                            raise
 
-    successful = 0
-    for endpoint in tqdm(vote_endpoints):
-        try:
-            await CommitteeVote.scrape_all(endpoint)
-            successful += 1
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code != 400:
-                raise
-
-    print(f"{successful}/{len(vote_endpoints)}")
+    print(f"{successful}/{len(seen)}")
 
 
 if __name__ == "__main__":
-    scrape_malegislature_api()
+    asyncio.run(scrape_malegislature_api())

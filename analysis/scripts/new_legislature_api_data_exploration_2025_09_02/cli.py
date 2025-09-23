@@ -1,3 +1,4 @@
+import asyncio
 from collections import Counter, defaultdict
 from typing import Any
 
@@ -15,7 +16,6 @@ from .malegislature_api_scraper import (
     LegislativeMember,
     scrape_malegislature_api,
 )
-from ji_async_http_utils.httpx import run_in_lifespan
 from .utils.reports import report_for
 
 
@@ -32,7 +32,6 @@ def cli() -> None:
     help="Print N hearing documents in the report.",
 )
 @cli.command("hearing-documents-report")
-@run_in_lifespan
 async def hearing_documents_report(show: int):
     await create_hearing_documents_report(show)
 
@@ -44,10 +43,12 @@ async def hearing_documents_report(show: int):
 )
 @cli.command("scrape-hearing-documents")
 def scrape_hearing_documents_cmd(no_cache: bool):
-    scrape_hearing_documents(use_cache=not no_cache)
+    asyncio.run(scrape_hearing_documents(use_cache=not no_cache))
 
 
-cli.command("scrape-api")(scrape_malegislature_api)
+@cli.command("scrape-api")
+def scrape_malegislature_api_cmd():
+    asyncio.run(scrape_malegislature_api())
 
 
 @cli.command("see-parsed-testimonies")
@@ -56,7 +57,6 @@ def see_parsed_testimonies() -> None:
 
 
 @cli.command("committee-vote-report")
-@run_in_lifespan
 async def committee_vote_report():
     # 1) Load cached data
     docs = await Document.scrape_list(check_api=False, use_cache=True)

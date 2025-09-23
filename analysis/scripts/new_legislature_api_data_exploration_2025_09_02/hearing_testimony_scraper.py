@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 from collections import Counter
@@ -7,6 +8,7 @@ from datetime import datetime
 from typing import Literal
 from urllib.parse import parse_qs, urlparse
 
+import aiohttp
 from pydantic import Field
 from pydantic_cacheable_model import CacheKey
 from rich import print
@@ -14,7 +16,7 @@ from tqdm import tqdm
 
 from .ai import LLMInputModel, LLMOutputModel, parse_all
 from .malegislature_api_scraper import Hearing
-from ji_async_http_utils.httpx import request, run_in_lifespan
+from ji_async_http_utils.aiohttp import request
 from .utils.base_model import CacheableModel
 from .utils.doc_reader import DocumentRef
 from .utils.reports import report_for
@@ -197,16 +199,25 @@ Text:
             file_extension=q["fileExtension"][0],
         )
 
-    async def download(self, overwrite: bool = False) -> None:
+    async def download(
+        self, session: aiohttp.ClientSession, overwrite: bool = False
+    ) -> None:
         if overwrite or not os.path.exists(self.filepath):
-            response = await request(self.url)
-            content = response.read()
+            response = await request(url=self.url, session=session)
+            content = await response.read()
             with open(self.filepath, "wb") as fp:
                 fp.write(content)
 
 
-async def get_hearing_documents(*, check_api: bool, use_cache: bool):
-    hearings = await Hearing.scrape_list(check_api=check_api, use_cache=use_cache)
+async def get_hearing_documents(
+    *,
+    check_api: bool,
+    use_cache: bool,
+    session: aiohttp.ClientSession | None = None,
+):
+    hearings = await Hearing.scrape_list(
+        check_api=check_api, use_cache=use_cache, session=session
+    )
     docs: list[HearingDocument] = []
     for hearing in hearings:
         if isinstance(hearing.document_urls, list):
@@ -251,22 +262,24 @@ async def create_hearing_documents_report(show: int):
     )
 
 
-@run_in_lifespan
 async def scrape_hearing_documents(use_cache: bool):
-    docs = [
-        doc
-        for doc in await get_hearing_documents(check_api=True, use_cache=use_cache)
-        if doc.can_ask_llm
-    ]
-    for doc in tqdm(docs, desc="Downloading Hearing Documents"):
-        # Ensure the document exists on disk before parsing
-        await doc.download()
-        # and save a text backup of it so it's cheaper to extract text in future runs
-        doc.ref.save_text_backup()
+    async with aiohttp.ClientSession() as session:
+        docs = [
+            doc
+            for doc in await get_hearing_documents(
+                session=session, check_api=True, use_cache=use_cache
+            )
+            if doc.can_ask_llm
+        ]
+        for doc in tqdm(docs, desc="Downloading Hearing Documents"):
+            # Ensure the document exists on disk before parsing
+            await doc.download(session=session)
+            # and save a text backup of it so it's cheaper to extract text in future runs
+            doc.ref.save_text_backup()
 
-    for doc in await parse_all(docs):
-        doc.cache()
+        for doc in await parse_all(docs):
+            doc.cache()
 
 
 if __name__ == "__main__":
-    scrape_hearing_documents(use_cache=True)
+    asyncio.run(scrape_hearing_documents(use_cache=True))
