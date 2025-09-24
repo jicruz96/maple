@@ -33,7 +33,7 @@ class MALegislatureAPIModelWithExtraScrapableDetails(MALegislatureAPIModel):
     Details: str | None = None
 
     @property
-    def detail_url(self) -> str | None:
+    def detail_endpoint(self) -> str | None:
         if self.Details:
             return self.Details.replace("http://", "https://")
         return None
@@ -196,7 +196,7 @@ class Amendment(MALegislatureAPIModelWithExtraScrapableDetails):
     Text: DetailField[str | None]
 
     @property
-    def detail_url(self) -> str | None:
+    def detail_endpoint(self) -> str | None:
         if not (self.ParentBillNumber and self.Branch and self.AmendmentNumber):
             return None
         return f"{self.BASE_URL}/api/GeneralCourts/{self.GeneralCourtNumber}/Documents/{self.ParentBillNumber}/Branches/{self.Branch}/Amendments/{self.AmendmentNumber}"
@@ -318,10 +318,6 @@ class Hearing(MALegislatureAPIModelWithExtraScrapableDetails):
 
     # scraped from hearing detail HTML page
     document_urls: DetailField[list[str]] = CustomScrapeField("scrape_document_urls")
-    testimony_instructions: DetailField[str] = CustomScrapeField(
-        "scrape_testimony_instructions",
-        # alias="testimony_instructions"
-    )
 
     @property
     def webpage_url(self) -> str:
@@ -343,21 +339,6 @@ class Hearing(MALegislatureAPIModelWithExtraScrapableDetails):
                 )
             ]
         return []
-
-    async def scrape_testimony_instructions(
-        self, session: aiohttp.ClientSession
-    ) -> str | bytes:
-        return (await get_soup(self.webpage_url, session=session)).prettify()  # type: ignore
-
-    async def scrape_detail(
-        self, *, use_cache: bool = True, session: aiohttp.ClientSession
-    ) -> None:
-        await super().scrape_detail(
-            use_cache=use_cache,
-            session=session,
-        )
-        await self.scrape_testimony_instructions(session)
-        self.cache()
 
 
 class GeneralCourt(MALegislatureAPIModel):
