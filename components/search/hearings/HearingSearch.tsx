@@ -1,6 +1,8 @@
-import { FC, useCallback, useMemo } from "react"
+import { Hit } from "instantsearch.js"
+import { RefinementListItem } from "instantsearch.js/es/connectors/refinement-list/connectRefinementList"
+import { TFunction, useTranslation } from "next-i18next"
 import singletonRouter from "next/router"
-import TypesenseInstantSearchAdapter from "typesense-instantsearch-adapter"
+import { FC, useCallback, useMemo } from "react"
 import {
   CurrentRefinements,
   Hits,
@@ -9,16 +11,15 @@ import {
   SearchBox
 } from "react-instantsearch"
 import { createInstantSearchRouterNext } from "react-instantsearch-router-nextjs"
-import { useTranslation, TFunction } from "next-i18next"
-import { Hit } from "instantsearch.js"
 import styled from "styled-components"
+import TypesenseInstantSearchAdapter from "typesense-instantsearch-adapter"
 import { Col, Container, Row, Spinner } from "../../bootstrap"
 import { useMemberSearch } from "../../db/members"
 import { NoResults } from "../NoResults"
 import { ResultCount } from "../ResultCount"
 import { SearchContainer } from "../SearchContainer"
 import { SearchErrorBoundary } from "../SearchErrorBoundary"
-import { SortBy } from "../SortBy"
+import { SortBy, SortByWithConfigurationItem } from "../SortBy"
 import {
   getServerConfig,
   SearchStatus,
@@ -26,9 +27,8 @@ import {
   VirtualFilters
 } from "../common"
 import { pathToSearchState, searchStateToUrl } from "../routingHelpers"
+import { useRefinements } from "../useRefinements"
 import { HearingHit } from "./HearingHit"
-import { useHearingRefinements } from "./useHearingRefinements"
-import { useHearingSort } from "./useHearingSort"
 
 const searchClient = new TypesenseInstantSearchAdapter({
   server: getServerConfig(),
@@ -66,7 +66,6 @@ export const HearingSearch = () => {
 
   const refinements = useHearingRefinements()
   const sortItems = useHearingSort()
-  const initialSortByValue = sortItems[0]?.value ?? "hearings"
   const status = useSearchStatus()
 
   const HearingHitComponent: FC<{ hit: HearingHitData }> = useCallback(
@@ -77,7 +76,7 @@ export const HearingSearch = () => {
   return (
     <SearchErrorBoundary>
       <InstantSearch
-        indexName={initialSortByValue}
+        indexName={sortItems[0].value}
         searchClient={searchClient}
         routing={{
           router: createInstantSearchRouterNext({
@@ -180,4 +179,51 @@ const Results: FC<ResultsProps> = ({ status, HearingHitComponent, t }) => {
   }
 
   return <Hits hitComponent={HearingHitComponent} />
+}
+
+const useHearingSort = () => {
+  const { t } = useTranslation("search")
+
+  return useMemo<SortByWithConfigurationItem[]>(
+    () => [
+      {
+        label: t("sort_by.earliest_hearing"),
+        value: "hearings/sort/startsAt:asc"
+      },
+      {
+        label: t("sort_by.latest_hearing"),
+        value: "hearings/sort/startsAt:desc"
+      },
+      {
+        label: t("sort_by.relevance"),
+        value: "hearings/sort/_text_match:desc,startsAt:asc"
+      }
+    ],
+    [t]
+  )
+}
+
+const useHearingRefinements = () => {
+  const { t } = useTranslation("search")
+
+  return useRefinements({
+    refinementProps: useMemo(
+      () =>
+        [
+          { attribute: "month" },
+          { attribute: "year" },
+          {
+            attribute: "chairNames",
+            transformItems: (items: RefinementListItem[]) =>
+              items.sort((a, b) => a.label.localeCompare(b.label))
+          }
+        ].map(props => ({
+          limit: 500,
+          searchable: true,
+          searchablePlaceholder: t(`refinements.hearing.${props.attribute}`),
+          ...props
+        })),
+      [t]
+    )
+  })
 }
