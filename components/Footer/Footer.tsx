@@ -216,13 +216,12 @@ const AboutLinks = () => {
 
 const BrowseList = () => {
   const { t } = useTranslation("common")
-  const showHearings = flags().hearingsAndTranscriptions
   return (
     <>
       <BrowseHeader href="/testimony">
         {t("navigation.browseTestimony")}
       </BrowseHeader>
-      {showHearings ? (
+      {flags().hearingsAndTranscriptions ? (
         <BrowseHeader href="/hearings">
           {t("navigation.browseHearings")}
         </BrowseHeader>
