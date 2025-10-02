@@ -1,10 +1,8 @@
-import { DateTime } from "luxon"
 import Link from "next/link"
 import { useTranslation } from "next-i18next"
 import styled from "styled-components"
-import { Card, Badge } from "../../bootstrap"
+import { Card, Badge, Spinner } from "../../bootstrap"
 import { Highlight } from "react-instantsearch"
-import { timeZone } from "../../db/events"
 import { HearingHitData } from "./HearingSearch"
 
 type HearingHitProps = {
@@ -44,17 +42,11 @@ const SectionLabel = styled.span`
   margin-right: 0.5rem;
 `
 
-const formatSchedule = (startsAt: number) => {
-  const dt = DateTime.fromMillis(startsAt, { zone: timeZone })
-  return {
-    date: dt.toFormat("MMMM d, yyyy"),
-    time: dt.toFormat("h:mm a")
-  }
-}
-
 export const HearingHit = ({ hit, loading }: HearingHitProps) => {
   const { t } = useTranslation(["search", "hearing"])
-  const schedule = formatSchedule(hit.startsAt)
+  const startsAt = new Date(hit.startsAt)
+  const scheduleDate = t("schedule_date", { ns: "hearing", date: startsAt })
+  const scheduleTime = t("schedule_time", { ns: "hearing", date: startsAt })
   const chairNames = hit.chairNames ?? []
   const topics = hit.agendaTopics ?? []
 
@@ -67,13 +59,13 @@ export const HearingHit = ({ hit, loading }: HearingHitProps) => {
               <div className="d-flex flex-wrap gap-2 align-items-center justify-content-between">
                 <div className="d-flex flex-column">
                   <span className="text-uppercase fw-semibold text-secondary">
-                    {schedule.date}
+                    {scheduleDate}
                   </span>
-                  <span className="text-secondary">{schedule.time}</span>
+                  <span className="text-secondary">{scheduleTime}</span>
                 </div>
                 {hit.hasVideo ? (
                   <Badge bg="success" pill>
-                    {t("video_available")}
+                    {t("video_available", { ns: "search" })}
                   </Badge>
                 ) : null}
               </div>
@@ -91,7 +83,9 @@ export const HearingHit = ({ hit, loading }: HearingHitProps) => {
 
               {hit.locationName || hit.locationCity ? (
                 <div>
-                  <SectionLabel>{t("location_label")}</SectionLabel>
+                  <SectionLabel>
+                    {t("location_label", { ns: "search" })}
+                  </SectionLabel>
                   <span>
                     {hit.locationName ?? hit.locationCity}
                     {hit.locationName && hit.locationCity
@@ -101,31 +95,31 @@ export const HearingHit = ({ hit, loading }: HearingHitProps) => {
                 </div>
               ) : null}
 
-              {chairNames.length ? (
-                <div>
+              {(chairNames.length || loading) && (
+                <div className="d-flex align-items-center gap-2">
                   <SectionLabel>{t("chairs", { ns: "hearing" })}</SectionLabel>
-                  <span>
-                    {chairNames.join(", ")}
-                    {loading ? ` (${t("loading_chairs")})` : ""}
-                  </span>
+                  {chairNames.length ? (
+                    <span>{chairNames.join(", ")}</span>
+                  ) : (
+                    <Spinner animation="border" size="sm" role="status" />
+                  )}
                 </div>
-              ) : loading && chairNames.length ? (
-                <div className="text-secondary">
-                  <SectionLabel>{t("chairs", { ns: "hearing" })}</SectionLabel>
-                  <span>{t("loading_chairs")}</span>
-                </div>
-              ) : null}
+              )}
 
               {topics.length ? (
                 <div>
-                  <SectionLabel>{t("agenda_label")}</SectionLabel>
+                  <SectionLabel>
+                    {t("agenda_label", { ns: "search" })}
+                  </SectionLabel>
                   <span>{topics.join(", ")}</span>
                 </div>
               ) : null}
 
               {hit.billNumbers && hit.billNumbers.length ? (
                 <div>
-                  <SectionLabel>{t("bills_label")}</SectionLabel>
+                  <SectionLabel>
+                    {t("bills_label", { ns: "search" })}
+                  </SectionLabel>
                   <span>{hit.billNumbers.join(", ")}</span>
                 </div>
               ) : null}
