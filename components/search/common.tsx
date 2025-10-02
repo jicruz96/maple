@@ -1,4 +1,4 @@
-import { useRefinementList } from "react-instantsearch"
+import { useInstantSearch, useRefinementList } from "react-instantsearch"
 import { TypesenseInstantsearchAdapterOptions } from "typesense-instantsearch-adapter"
 
 const devConfig = {
@@ -62,3 +62,12 @@ export const VirtualFilters = ({ type }: { type: VirtualFilterType }) => (
     ))}
   </>
 )
+
+export type SearchStatus = "loading" | "empty" | "results"
+
+export const useSearchStatus = (): SearchStatus => {
+  const { results } = useInstantSearch()
+  if (!results.query) return "loading"
+  if (results.nbHits === 0) return "empty"
+  return "results"
+}

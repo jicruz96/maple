@@ -4,8 +4,7 @@ import {
   Hits,
   InstantSearch,
   Pagination,
-  SearchBox,
-  useInstantSearch
+  SearchBox
 } from "react-instantsearch"
 import { createInstantSearchRouterNext } from "react-instantsearch-router-nextjs"
 import singletonRouter from "next/router"
@@ -20,7 +19,12 @@ import { SearchErrorBoundary } from "../SearchErrorBoundary"
 import { BillHit } from "./BillHit"
 import { useBillRefinements } from "./useBillRefinements"
 import { SortBy, SortByWithConfigurationItem } from "../SortBy"
-import { getServerConfig, VirtualFilters } from "../common"
+import {
+  getServerConfig,
+  SearchStatus,
+  useSearchStatus,
+  VirtualFilters
+} from "../common"
 import { useBillSort } from "./useBillSort"
 import { FC, useState } from "react"
 import { pathToSearchState, searchStateToUrl } from "../routingHelpers"
@@ -99,18 +103,6 @@ const RefinementRow = styled.div`
   gap: 0.5rem;
 `
 
-const useSearchStatus = () => {
-  const { results } = useInstantSearch()
-
-  if (!results.query) {
-    return "loading"
-  } else if (results.nbHits === 0) {
-    return "empty"
-  } else {
-    return "results"
-  }
-}
-
 const StyledLoadingContainer = styled(Container)`
   background-color: white;
   display: flex;
@@ -119,13 +111,7 @@ const StyledLoadingContainer = styled(Container)`
   align-items: center;
 `
 
-const Results = ({
-  status,
-  t
-}: {
-  status: ReturnType<typeof useSearchStatus>
-  t: TFunction
-}) => {
+const Results = ({ status, t }: { status: SearchStatus; t: TFunction }) => {
   const [isLoadingBillDetails, setIsLoadingBillDetails] = useState(false)
 
   if (isLoadingBillDetails) {

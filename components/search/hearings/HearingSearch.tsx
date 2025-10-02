@@ -6,8 +6,7 @@ import {
   Hits,
   InstantSearch,
   Pagination,
-  SearchBox,
-  useInstantSearch
+  SearchBox
 } from "react-instantsearch"
 import { createInstantSearchRouterNext } from "react-instantsearch-router-nextjs"
 import { useTranslation, TFunction } from "next-i18next"
@@ -20,7 +19,12 @@ import { ResultCount } from "../ResultCount"
 import { SearchContainer } from "../SearchContainer"
 import { SearchErrorBoundary } from "../SearchErrorBoundary"
 import { SortBy } from "../SortBy"
-import { getServerConfig, VirtualFilters } from "../common"
+import {
+  getServerConfig,
+  SearchStatus,
+  useSearchStatus,
+  VirtualFilters
+} from "../common"
 import { pathToSearchState, searchStateToUrl } from "../routingHelpers"
 import { HearingHit } from "./HearingHit"
 import { useHearingRefinements } from "./useHearingRefinements"
@@ -55,15 +59,6 @@ export type HearingSearchRecord = {
 }
 
 export type HearingHitData = Hit<HearingSearchRecord>
-
-type SearchStatus = "loading" | "empty" | "results"
-
-const useSearchStatus = (): SearchStatus => {
-  const { results } = useInstantSearch()
-  if (!results.query) return "loading"
-  if (results.nbHits === 0) return "empty"
-  return "results"
-}
 
 export const HearingSearch = () => {
   const { t } = useTranslation("search")

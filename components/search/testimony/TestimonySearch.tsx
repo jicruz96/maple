@@ -24,7 +24,7 @@ import { ResultCount } from "../ResultCount"
 import { SearchContainer } from "../SearchContainer"
 import { SearchErrorBoundary } from "../SearchErrorBoundary"
 import { SortBy } from "../SortBy"
-import { getServerConfig, VirtualFilters } from "../common"
+import { getServerConfig, useSearchStatus, VirtualFilters } from "../common"
 import { TestimonyHit } from "./TestimonyHit"
 import { useTestimonyRefinements } from "./useTestimonyRefinements"
 import { FollowContext, OrgFollowStatus } from "components/shared/FollowContext"
@@ -100,20 +100,8 @@ const RefinementRow = styled.div`
   gap: 0.5rem;
 `
 
-const useSearchStatus = () => {
-  const { results } = useInstantSearch()
-
-  if (!results.query) {
-    return "loading"
-  } else if (results.nbHits === 0) {
-    return "empty"
-  } else {
-    return "results"
-  }
-}
-
 const tabs = ["All", "Individuals", "Organizations"]
-type Tab = (typeof tabs)[number]
+type Tab = typeof tabs[number]
 
 const Layout = () => {
   const [key, setKey] = useState<string>("All")
