@@ -34,25 +34,31 @@ function RefinementList({ attribute }: { attribute: string }) {
   return null
 }
 
-export function VirtualFilters({ type }: { type: "bill" | "testimony" }) {
-  const refinementAttributes =
-    type === "testimony"
-      ? ["authorDisplayName", "court", "position", "billId", "authorRole"]
-      : [
-          "court",
-          "currentCommittee",
-          "city",
-          "primarySponsor",
-          "cosponsors",
-          "topics.lvl1",
-          "topics.lvl0"
-        ]
+type VirtualFilterType = "bill" | "testimony" | "hearing"
 
-  return (
-    <>
-      {refinementAttributes.map(attribute => (
-        <RefinementList key={attribute} attribute={attribute} />
-      ))}
-    </>
-  )
+const getRefinementAttributesByFilterType = (type: VirtualFilterType) => {
+  switch (type) {
+    case "testimony":
+      return ["authorDisplayName", "court", "position", "billId", "authorRole"]
+    case "bill":
+      return [
+        "court",
+        "currentCommittee",
+        "city",
+        "primarySponsor",
+        "cosponsors",
+        "topics.lvl1",
+        "topics.lvl0"
+      ]
+    case "hearing":
+      return ["month", "year", "chairNames", "committeeName", "locationCity"]
+  }
 }
+
+export const VirtualFilters = ({ type }: { type: VirtualFilterType }) => (
+  <>
+    {getRefinementAttributesByFilterType(type).map(attribute => (
+      <RefinementList key={attribute} attribute={attribute} />
+    ))}
+  </>
+)

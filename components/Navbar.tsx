@@ -5,11 +5,13 @@ import styled from "styled-components"
 import { useMediaQuery } from "usehooks-ts"
 import { SignInWithButton, signOutAndRedirectToHome, useAuth } from "./auth"
 import { Col, Container, Dropdown, Nav, Navbar, NavDropdown } from "./bootstrap"
+import { flags } from "./featureFlags"
 
 import {
   Avatar,
   NavbarLinkAI,
   NavbarLinkBills,
+  NavbarLinkHearings,
   NavbarLinkEditProfile,
   NavbarLinkEffective,
   NavbarLinkFAQ,
@@ -76,9 +78,11 @@ const MobileNav: React.FC<React.PropsWithChildren<unknown>> = () => {
   }
 
   const SiteLinks = () => {
+    const showHearings = flags().hearingsAndTranscriptions
     return (
       <Nav className="my-4">
         <NavbarLinkBills handleClick={closeNav} />
+        {showHearings ? <NavbarLinkHearings handleClick={closeNav} /> : null}
         <NavbarLinkTestimony handleClick={closeNav} />
         {authenticated ? <NavbarLinkNewsfeed handleClick={closeNav} /> : <></>}
         <NavDropdown className={"navLink-primary"} title={t("about")}>
@@ -178,6 +182,7 @@ const MobileNav: React.FC<React.PropsWithChildren<unknown>> = () => {
 const DesktopNav: React.FC<React.PropsWithChildren<unknown>> = () => {
   const { authenticated } = useAuth()
   const { t } = useTranslation(["common", "auth"])
+  const showHearings = flags().hearingsAndTranscriptions
 
   return (
     <Container fluid className={`bg-secondary d-flex py-2 sticky-top`}>
@@ -192,6 +197,7 @@ const DesktopNav: React.FC<React.PropsWithChildren<unknown>> = () => {
       <div className={`align-self-center ms-3`}>
         <Nav>
           <NavbarLinkBills />
+          {showHearings ? <NavbarLinkHearings /> : null}
         </Nav>
       </div>
 
