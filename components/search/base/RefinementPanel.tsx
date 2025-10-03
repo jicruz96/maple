@@ -16,7 +16,7 @@ import {
 } from "../HierarchicalMenuWidget"
 import { SearchContainer } from "../SearchContainer"
 
-export type FilterPanelConfig = {
+export type RefinementPanelConfig = {
   filters: RefinementListProps[]
   menuProps?: MultiselectHierarchicalMenuParams
 }
@@ -119,15 +119,15 @@ const useHasRefinements = () => {
   return useInstantSearch().results.getRefinements().length > 0
 }
 
-type FilterPanelProps = FilterPanelConfig & {
+type RefinementPanelProps = RefinementPanelConfig & {
   children: (result: BasePanelElements) => ReactNode
 }
 
-export const FilterPanel = ({
+export const RefinementPanel = ({
   menuProps,
   filters,
   children
-}: FilterPanelProps) => {
+}: RefinementPanelProps) => {
   const isDesktop = useMediaQuery("(min-width: 768px)")
   const hasRefinements = useHasRefinements()
   const [isOpen, setIsOpen] = useState(false)

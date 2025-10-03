@@ -50,7 +50,7 @@ export const HearingHit = ({ hit }: { hit: HearingHitData }) => {
     const slugs = hit.billSlugs ?? []
     return numbers.map((number, index) => ({
       number,
-      slug: slugs[index] ?? ""
+      slug: slugs[index]!
     }))
   }, [hit.billNumbers, hit.billSlugs])
 

@@ -1,5 +1,5 @@
 import { Hit } from "instantsearch.js"
-import { SearchPage } from "../common"
+import { SearchPage } from "../base"
 import { HearingHit } from "./HearingHit"
 
 /* carbon copy of type in functions/src/hearings/search.ts */

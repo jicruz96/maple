@@ -23,13 +23,13 @@ export const useSearchStatus = (): SearchStatus => {
   return "results"
 }
 
-type SearchResultsProps<TRecord extends Hit> = {
+type ResultsPaneProps<TRecord extends Hit> = {
   hitComponent: ComponentType<{ hit: TRecord }>
 }
 
-export const SearchResults = <TRecord extends Hit>({
+export const ResultsPane = <TRecord extends Hit>({
   hitComponent
-}: SearchResultsProps<TRecord>) => {
+}: ResultsPaneProps<TRecord>) => {
   const { t } = useTranslation("search")
   const status = useSearchStatus()
   const [isNavigating, setIsNavigating] = useState(false)

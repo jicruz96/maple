@@ -19,10 +19,10 @@ import { ResultCount } from "../ResultCount"
 import { pathToSearchState, searchStateToUrl } from "../routingHelpers"
 import { SearchContainer } from "../SearchContainer"
 import { SortBy, SortByWithConfigurationItem } from "../SortBy"
-import { FilterPanel, FilterPanelConfig } from "./FilterPanel"
-import { VirtualFilters } from "./VirtualFilters"
-import { SearchResults } from "./SearchResults"
-import { server } from "./config"
+import { RefinementPanel, RefinementPanelConfig } from "./RefinementPanel"
+import { VirtualRefinements } from "./VirtualRefinements"
+import { ResultsPane } from "./ResultsPane"
+import { server } from "./typesenseConfig"
 import { SearchErrorBoundary } from "../SearchErrorBoundary"
 
 const RefinementToolbar = styled.div`
@@ -54,7 +54,7 @@ export type SortOptionInput = {
 type SearchPageProps<TRecord extends Hit> = {
   searchType: SearchType
   header?: ReactNode
-  filterPanelConfig: FilterPanelConfig
+  filterPanelConfig: RefinementPanelConfig
   currentRefinementsProps?: CurrentRefinementsProps
   hitComponent: ComponentType<{ hit: TRecord }>
   sortOptions: SortOptionInput[]
@@ -129,9 +129,9 @@ export const SearchPage = <TRecord extends Hit>({
         }}
         future={{ preserveSharedStateOnUnmount: true }}
       >
-        <VirtualFilters attributes={virtualFilters} />
+        <VirtualRefinements attributes={virtualFilters} />
         {header}
-        <FilterPanel menuProps={menuProps} filters={filtersWithDefaults}>
+        <RefinementPanel menuProps={menuProps} filters={filtersWithDefaults}>
           {({ filterPanel, filterToggle }) => (
             <SearchContainer>
               <Row>
@@ -156,13 +156,13 @@ export const SearchPage = <TRecord extends Hit>({
                     className="mt-2 mb-2"
                     {...currentRefinementsProps}
                   />
-                  <SearchResults hitComponent={hitComponent} />
+                  <ResultsPane hitComponent={hitComponent} />
                   <Pagination className="mx-auto mt-2 mb-3" />
                 </Col>
               </Row>
             </SearchContainer>
           )}
-        </FilterPanel>
+        </RefinementPanel>
       </InstantSearch>
     </SearchErrorBoundary>
   )

@@ -1,6 +1,6 @@
 import { currentGeneralCourt, generalCourts } from "functions/src/shared"
 import { useRef } from "react"
-import { SearchPage } from "../common"
+import { SearchPage } from "../base"
 import { BillHit } from "./BillHit"
 import { CurrentRefinementsConnectorParamsItem } from "instantsearch.js/es/connectors/current-refinements/connectCurrentRefinements"
 

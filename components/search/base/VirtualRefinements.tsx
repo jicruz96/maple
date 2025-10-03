@@ -11,11 +11,11 @@ const VirtualRefinementWidget = ({
   return null
 }
 
-export type VirtualFiltersProps = {
+export type VirtualRefinementsProps = {
   attributes: string[]
 }
 
-export const VirtualFilters = ({ attributes }: VirtualFiltersProps) => (
+export const VirtualRefinements = ({ attributes }: VirtualRefinementsProps) => (
   <>
     {attributes.map(attribute => (
       <VirtualRefinementWidget key={attribute} attribute={attribute} />

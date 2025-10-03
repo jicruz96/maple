@@ -8,7 +8,7 @@ import { useState } from "react"
 import { TabContainer } from "react-bootstrap"
 import { useInstantSearch } from "react-instantsearch"
 import { Nav } from "../../bootstrap"
-import { SearchPage } from "../common"
+import { SearchPage } from "../base"
 import { TestimonyHit } from "./TestimonyHit"
 
 export const TestimonySearch = () => {
