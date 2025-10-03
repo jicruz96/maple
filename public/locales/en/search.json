@@ -23,7 +23,7 @@
     "hearing": {
       "month": "Month",
       "year": "Year",
-      "chairs": "Chair"
+      "chairNames": "Chair"
     }
   },
   "sort_by": {
@@ -38,8 +38,14 @@
     "latest_hearing": "Sort by Most Recent Hearing"
   },
   "result_count": "Showing {{pageStart}}-{{pageEnd}} of {{nbHits}} Results",
+  "search_box": {
+    "placeholders": {
+      "bills": "Search For Bills",
+      "testimony": "Search For Testimony",
+      "hearings": "Search For Hearings"
+    }
+  },
   "search_error": "Something went wrong. Please try again. Original message: {{error}}",
-  "search_placeholder_hearings": "Search hearings by topic, chair, or bill",
   "video_available": "Video available",
   "location_label": "Location",
   "agenda_label": "Agenda Topics",

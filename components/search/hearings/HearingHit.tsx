@@ -1,14 +1,9 @@
 import Link from "next/link"
 import { useTranslation } from "next-i18next"
 import styled from "styled-components"
-import { Card, Badge, Spinner } from "../../bootstrap"
+import { Card, Badge } from "../../bootstrap"
 import { Highlight } from "react-instantsearch"
 import { HearingHitData } from "./HearingSearch"
-
-type HearingHitProps = {
-  hit: HearingHitData
-  loading: boolean
-}
 
 const StyledCard = styled(Card)`
   border: none;
@@ -42,7 +37,7 @@ const SectionLabel = styled.span`
   margin-right: 0.5rem;
 `
 
-export const HearingHit = ({ hit, loading }: HearingHitProps) => {
+export const HearingHit = ({ hit }: { hit: HearingHitData }) => {
   const { t } = useTranslation(["search", "hearing"])
   const startsAt = new Date(hit.startsAt)
   const scheduleDate = t("schedule_date", { ns: "hearing", date: startsAt })
@@ -95,14 +90,10 @@ export const HearingHit = ({ hit, loading }: HearingHitProps) => {
                 </div>
               ) : null}
 
-              {(chairNames.length || loading) && (
+              {chairNames.length && (
                 <div className="d-flex align-items-center gap-2">
                   <SectionLabel>{t("chairs", { ns: "hearing" })}</SectionLabel>
-                  {chairNames.length ? (
-                    <span>{chairNames.join(", ")}</span>
-                  ) : (
-                    <Spinner animation="border" size="sm" role="status" />
-                  )}
+                  {<span>{chairNames.join(", ")}</span>}
                 </div>
               )}
 

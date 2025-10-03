@@ -1,33 +1,29 @@
 import { useMemo, useRef } from "react"
-import { SortByWithConfigurationItem } from "../SortBy"
-import { useTranslation } from "next-i18next"
+import { SortOptionInput } from "../common"
 
-export const useBillSort = () => {
+export const useBillSortOptions = (): SortOptionInput[] => {
   const now = useRef(new Date().getTime())
-  const { t } = useTranslation("search")
 
-  // refer to
-  // https://github.com/typesense/typesense-instantsearch-adapter#with-react-instantsearch
-  const items: SortByWithConfigurationItem[] = useMemo(
+  return useMemo(
     () => [
       {
-        label: t("sort_by.most_recent_testimony"),
+        labelKey: "sort_by.most_recent_testimony",
         value: "bills/sort/latestTestimonyAt:desc"
       },
       {
-        label: t("sort_by.relevance"),
+        labelKey: "sort_by.relevance",
         value: "bills/sort/_text_match:desc,testimonyCount:desc"
       },
       {
-        label: t("sort_by.testimony_count"),
+        labelKey: "sort_by.testimony_count",
         value: "bills/sort/testimonyCount:desc"
       },
       {
-        label: t("sort_by.cosponsor_count"),
+        labelKey: "sort_by.cosponsor_count",
         value: "bills/sort/cosponsorCount:desc"
       },
       {
-        label: t("sort_by.next_hearing_date"),
+        labelKey: "sort_by.next_hearing_date",
         value: "bills/sort/nextHearingAt:asc",
         configure: {
           numericRefinements: {
@@ -38,7 +34,6 @@ export const useBillSort = () => {
         }
       }
     ],
-    [t]
+    []
   )
-  return items
 }
