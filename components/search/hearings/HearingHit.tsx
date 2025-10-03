@@ -4,6 +4,7 @@ import styled from "styled-components"
 import { Card, Badge } from "../../bootstrap"
 import { Highlight } from "react-instantsearch"
 import { HearingHitData } from "./HearingSearch"
+import { useState, useMemo } from "react"
 
 const StyledCard = styled(Card)`
   border: none;
@@ -44,6 +45,14 @@ export const HearingHit = ({ hit }: { hit: HearingHitData }) => {
   const scheduleTime = t("schedule_time", { ns: "hearing", date: startsAt })
   const chairNames = hit.chairNames ?? []
   const topics = hit.agendaTopics ?? []
+  const bills = useMemo(() => {
+    const numbers = hit.billNumbers ?? []
+    const slugs = hit.billSlugs ?? []
+    return numbers.map((number, index) => ({
+      number,
+      slug: slugs[index] ?? ""
+    }))
+  }, [hit.billNumbers, hit.billSlugs])
 
   return (
     <Link href={`/hearing/${hit.eventId}`} legacyBehavior>
@@ -90,12 +99,12 @@ export const HearingHit = ({ hit }: { hit: HearingHitData }) => {
                 </div>
               ) : null}
 
-              {chairNames.length && (
+              {chairNames.length ? (
                 <div className="d-flex align-items-center gap-2">
                   <SectionLabel>{t("chairs", { ns: "hearing" })}</SectionLabel>
                   {<span>{chairNames.join(", ")}</span>}
                 </div>
-              )}
+              ) : null}
 
               {topics.length ? (
                 <div>
@@ -106,18 +115,57 @@ export const HearingHit = ({ hit }: { hit: HearingHitData }) => {
                 </div>
               ) : null}
 
-              {hit.billNumbers && hit.billNumbers.length ? (
-                <div>
-                  <SectionLabel>
-                    {t("bills_label", { ns: "search" })}
-                  </SectionLabel>
-                  <span>{hit.billNumbers.join(", ")}</span>
-                </div>
-              ) : null}
+              <BillsSection bills={bills} />
             </div>
           </Card.Body>
         </StyledCard>
       </a>
     </Link>
+  )
+}
+
+const BillsSection = ({
+  bills
+}: {
+  bills: { number: string; slug: string }[]
+}) => {
+  const { t } = useTranslation("search")
+  const [showAllBills, setShowAllBills] = useState(false)
+
+  if (!bills.length) return null
+
+  const visibleCount = showAllBills ? bills.length : Math.min(7, bills.length)
+  const visibleBills = bills.slice(0, visibleCount)
+  const remaining = bills.length - visibleCount
+
+  return (
+    <div>
+      <SectionLabel>{t("bills_label")}</SectionLabel>
+      <span>
+        {visibleBills.map((bill, index) => {
+          const isLastVisible = index === visibleBills.length - 1
+          const shouldShowComma =
+            !isLastVisible || (!showAllBills && remaining > 0)
+
+          return (
+            <span key={`${bill.slug}-${bill.number}-${index}`}>
+              <Link href={`/bills/${bill.slug}`} legacyBehavior>
+                <a className="text-decoration-none">{bill.number}</a>
+              </Link>
+              {shouldShowComma ? ", " : ""}
+            </span>
+          )
+        })}
+        {!showAllBills && remaining > 0 ? (
+          <button
+            type="button"
+            className="btn btn-link p-0 align-baseline"
+            onClick={() => setShowAllBills(true)}
+          >
+            {t("more_bills", { count: remaining })}
+          </button>
+        ) : null}
+      </span>
+    </div>
   )
 }

@@ -18,6 +18,7 @@ type HearingSearchRecord = {
   chairNames?: string[]
   agendaTopics?: string[]
   billNumbers?: string[]
+  billSlugs?: string[]
   hasVideo: boolean
 }
 

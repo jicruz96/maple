@@ -55,7 +55,7 @@ export const Session = BaseEvent.extend({
 export type HearingLocation = Static<typeof HearingLocation>
 export const HearingLocation = Record({
   AddressLine1: String,
-  AddresssLine2: String,
+  AddressLine2: Nullable(String),
   City: String,
   LocationName: String,
   State: String,
@@ -77,7 +77,7 @@ export const HearingContent = BaseEventContent.extend({
         Record({
           BillNumber: String,
           GeneralCourtNumber: Number,
-          PrimarySponsor: Record({ Id: String }),
+          PrimarySponsor: Nullable(Record({ Id: String })),
           Title: String
         })
       ),

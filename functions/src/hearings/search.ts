@@ -17,8 +17,9 @@ type HearingSearchRecord = {
   locationName?: string
   locationCity?: string
   chairNames?: string[]
-  agendaTopics?: string[]
-  billNumbers?: string[]
+  agendaTopics: string[]
+  billNumbers: string[]
+  billSlugs: string[]
   hasVideo: boolean
 }
 
@@ -43,44 +44,48 @@ export const {
       { name: "committeeName", type: "string", facet: true, optional: true },
       { name: "locationName", type: "string", facet: false, optional: true },
       { name: "locationCity", type: "string", facet: false, optional: true },
-      { name: "chairNames", type: "string[]", facet: false, optional: true },
+      { name: "chairNames", type: "string[]", facet: true, optional: true },
       { name: "agendaTopics", type: "string[]", facet: false, optional: true },
       { name: "billNumbers", type: "string[]", facet: false, optional: true },
+      { name: "billSlugs", type: "string[]", facet: false, optional: true },
       { name: "hasVideo", type: "bool", facet: true }
     ],
     default_sorting_field: "startsAt"
   },
   convert: data => {
-    const hearing = Hearing.check(data)
-    const startsAt = hearing.startsAt.toMillis()
+    const {
+      content,
+      startsAt: startsAtTimestamp,
+      id,
+      videoURL,
+      committeeChairNames
+    } = Hearing.check(data)
+    const startsAt = startsAtTimestamp.toMillis()
     const schedule = DateTime.fromMillis(startsAt, { zone: timeZone })
-
-    const agendaTopics = hearing.content.HearingAgendas?.map(
-      agenda => agenda.Topic
-    ).filter(Boolean) as string[]
-
-    const billNumbers = hearing.content.HearingAgendas?.flatMap(agenda =>
-      agenda.DocumentsInAgenda.map(doc => doc.BillNumber)
-    ).filter(Boolean) as string[]
-
-    const committeeName = hearing.content.Name
-
+    const bills = content.HearingAgendas?.flatMap(({ DocumentsInAgenda }) =>
+      DocumentsInAgenda.map(doc => ({
+        number: doc.BillNumber,
+        slug: `${doc.GeneralCourtNumber}/${doc.BillNumber}`
+      }))
+    )
+    const committeeName = content.Name
     return {
-      id: hearing.id,
-      eventId: hearing.content.EventId,
-      title: committeeName ?? `Hearing ${hearing.content.EventId}`,
-      description: hearing.content.Description,
+      id: id,
+      eventId: content.EventId,
+      title: committeeName ?? `Hearing ${content.EventId}`,
+      description: content.Description,
       startsAt,
       month: schedule.toFormat("LLLL"),
       year: schedule.year,
-      committeeCode: hearing.content.HearingHost?.CommitteeCode,
+      committeeCode: content.HearingHost?.CommitteeCode,
       committeeName,
-      locationName: hearing.content.Location?.LocationName,
-      locationCity: hearing.content.Location?.City,
-      chairNames: hearing.committeeChairNames ?? undefined,
-      agendaTopics: agendaTopics.length ? agendaTopics : undefined,
-      billNumbers: billNumbers.length ? billNumbers : undefined,
-      hasVideo: Boolean(hearing.videoURL)
+      locationName: content.Location?.LocationName,
+      locationCity: content.Location?.City,
+      chairNames: committeeChairNames,
+      agendaTopics: content.HearingAgendas.map(agenda => agenda.Topic),
+      billNumbers: bills.map(bill => bill.number),
+      billSlugs: bills.map(bill => bill.slug),
+      hasVideo: Boolean(videoURL)
     }
   }
 })
