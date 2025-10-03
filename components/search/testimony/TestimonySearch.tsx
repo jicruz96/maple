@@ -101,7 +101,7 @@ const RefinementRow = styled.div`
 `
 
 const tabs = ["All", "Individuals", "Organizations"]
-type Tab = typeof tabs[number]
+type Tab = (typeof tabs)[number]
 
 const Layout = () => {
   const [key, setKey] = useState<string>("All")
