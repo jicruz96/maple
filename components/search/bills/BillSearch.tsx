@@ -2,21 +2,25 @@ import { currentGeneralCourt, generalCourts } from "functions/src/shared"
 import { useRef } from "react"
 import { SearchPage } from "../common"
 import { BillHit } from "./BillHit"
+import { CurrentRefinementsConnectorParamsItem } from "instantsearch.js/es/connectors/current-refinements/connectCurrentRefinements"
 
-const extractLastSegmentOfRefinements = (items: any[]) => {
-  return items.map(item => {
-    if (item.label != "topics.lvl1") return item
-    const newRefinements = item.refinements.map(
-      (refinement: { label: string }) => {
-        const lastPartOfLabel = refinement.label.includes(">")
-          ? refinement.label.split(" > ").pop()
-          : refinement.label
-        return { ...refinement, label: lastPartOfLabel }
-      }
-    )
-    return { ...item, label: "Tags", refinements: newRefinements }
-  })
-}
+const extractLastSegmentOfRefinements = (
+  items: CurrentRefinementsConnectorParamsItem[]
+) =>
+  items.map(item =>
+    item.label != "topics.lvl1"
+      ? item
+      : {
+          ...item,
+          label: "Tags",
+          refinements: item.refinements.map(({ label, ...rest }) => ({
+            ...rest,
+            label: label.includes(" > ")
+              ? (label.split(" > ").pop() as string)
+              : label
+          }))
+        }
+  )
 
 export const BillSearch = () => {
   const now = useRef(new Date().getTime())
@@ -53,8 +57,22 @@ export const BillSearch = () => {
     <SearchPage
       searchType="bill"
       hitComponent={BillHit}
-      filterConfig={{
-        hierarchicalMenu: { attributes: ["topics.lvl0", "topics.lvl1"] },
+      sortOptions={sortOptions}
+      initialUiState={{
+        [sortOptions[0].value]: {
+          refinementList: { court: [String(currentGeneralCourt)] }
+        }
+      }}
+      searchParameters={{
+        query_by: "number,title,body",
+        exclude_fields: "body"
+      }}
+      currentRefinementsProps={{
+        excludedAttributes: ["nextHearingAt"],
+        transformItems: extractLastSegmentOfRefinements
+      }}
+      filterPanelConfig={{
+        menuProps: { attributes: ["topics.lvl0", "topics.lvl1"] },
         filters: [
           {
             attribute: "court",
@@ -71,29 +89,6 @@ export const BillSearch = () => {
           { attribute: "primarySponsor" },
           { attribute: "cosponsors" }
         ]
-      }}
-      sortOptions={sortOptions}
-      searchParameters={{
-        query_by: "number,title,body",
-        exclude_fields: "body"
-      }}
-      virtualFacetAttributes={[
-        "court",
-        "currentCommittee",
-        "city",
-        "primarySponsor",
-        "cosponsors",
-        "topics.lvl1",
-        "topics.lvl0"
-      ]}
-      currentRefinementsProps={{
-        excludedAttributes: ["nextHearingAt"],
-        transformItems: extractLastSegmentOfRefinements
-      }}
-      initialUiState={{
-        [sortOptions[0].value]: {
-          refinementList: { court: [String(currentGeneralCourt)] }
-        }
       }}
     />
   )

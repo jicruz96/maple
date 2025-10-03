@@ -30,13 +30,19 @@ export const TestimonySearch = () => {
   return (
     <FollowContext.Provider value={{ followStatus, setFollowStatus }}>
       <SearchPage
+        header={<TabsHeader />}
         searchType="testimony"
+        hitComponent={TestimonyHit}
+        sortOptions={sortOptions}
+        initialUiState={{
+          [sortOptions[0].value]: {
+            refinementList: { court: [String(currentGeneralCourt)] }
+          }
+        }}
         searchParameters={{
           query_by: "billId,content,authorDisplayName,authorRole"
         }}
-        header={<TabsHeader />}
-        hitComponent={TestimonyHit}
-        filterConfig={{
+        filterPanelConfig={{
           filters: [
             {
               transformItems: items => items.filter(i => i.label !== "private"),
@@ -48,20 +54,7 @@ export const TestimonySearch = () => {
             { attribute: "authorRole", searchable: false, hidden: true }
           ]
         }}
-        sortOptions={sortOptions}
-        virtualFacetAttributes={[
-          "authorDisplayName",
-          "court",
-          "position",
-          "billId",
-          "authorRole"
-        ]}
         currentRefinementsProps={{ excludedAttributes: ["authorRole"] }}
-        initialUiState={{
-          [sortOptions[0].value]: {
-            refinementList: { court: [String(currentGeneralCourt)] }
-          }
-        }}
       />
     </FollowContext.Provider>
   )

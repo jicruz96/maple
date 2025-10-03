@@ -39,7 +39,7 @@
   },
   "result_count": "Showing {{pageStart}}-{{pageEnd}} of {{nbHits}} Results",
   "search_box": {
-    "placeholders": {
+    "placeholder": {
       "bills": "Search For Bills",
       "testimony": "Search For Testimony",
       "hearings": "Search For Hearings"

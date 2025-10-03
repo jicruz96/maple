@@ -32,10 +32,11 @@ export const HearingSearch = () => (
       sort_by: "startsAt:asc"
     }}
     hitComponent={HearingHit}
-    filterConfig={{
+    filterPanelConfig={{
       filters: [
         { attribute: "month" },
         { attribute: "year" },
+        { attribute: "committeeName" },
         {
           attribute: "chairNames",
           transformItems: items =>
@@ -56,13 +57,6 @@ export const HearingSearch = () => (
         labelKey: "sort_by.relevance",
         value: "hearings/sort/_text_match:desc,startsAt:asc"
       }
-    ]}
-    virtualFacetAttributes={[
-      "month",
-      "year",
-      "chairNames",
-      "committeeName",
-      "locationCity"
     ]}
   />
 )
