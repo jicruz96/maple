@@ -31,6 +31,9 @@ export const TestimonySearch = () => {
     <FollowContext.Provider value={{ followStatus, setFollowStatus }}>
       <SearchPage
         searchType="testimony"
+        searchParameters={{
+          query_by: "billId,content,authorDisplayName,authorRole"
+        }}
         header={<TabsHeader />}
         hitComponent={TestimonyHit}
         filterConfig={{
@@ -46,9 +49,6 @@ export const TestimonySearch = () => {
           ]
         }}
         sortOptions={sortOptions}
-        searchParameters={{
-          query_by: "billId,content,authorDisplayName,authorRole"
-        }}
         virtualFacetAttributes={[
           "authorDisplayName",
           "court",
