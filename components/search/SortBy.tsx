@@ -40,7 +40,9 @@ export type SortByWithConfigurationItem = SortByItem & {
   configure?: UseConfigureProps
 }
 
-export const SortBy = ({ items }: { items: SortByWithConfigurationItem[] }) => {
+export type SortByProps = { items: SortByWithConfigurationItem[] }
+
+export const SortBy = ({ items }: SortByProps) => {
   const sortBy = useSortBy({ items }),
     selected = items.find(i => i.value === sortBy.currentRefinement)!
   useConfigure(selected.configure ?? {})

@@ -1,189 +1,95 @@
-import { TFunction, useTranslation } from "next-i18next"
-import {
-  CurrentRefinements,
-  Hits,
-  InstantSearch,
-  Pagination,
-  SearchBox,
-  useInstantSearch
-} from "react-instantsearch"
-import { createInstantSearchRouterNext } from "react-instantsearch-router-nextjs"
-import singletonRouter from "next/router"
-import styled from "styled-components"
-import TypesenseInstantSearchAdapter from "typesense-instantsearch-adapter"
-import { currentGeneralCourt } from "functions/src/shared"
-import { Col, Container, Row, Spinner } from "../../bootstrap"
-import { NoResults } from "../NoResults"
-import { ResultCount } from "../ResultCount"
-import { SearchContainer } from "../SearchContainer"
-import { SearchErrorBoundary } from "../SearchErrorBoundary"
+import { currentGeneralCourt, generalCourts } from "functions/src/shared"
+import { useRef } from "react"
+import { SearchPage } from "../base"
 import { BillHit } from "./BillHit"
-import { useBillRefinements } from "./useBillRefinements"
-import { SortBy, SortByWithConfigurationItem } from "../SortBy"
-import { getServerConfig, VirtualFilters } from "../common"
-import { useBillSort } from "./useBillSort"
-import { FC, useState } from "react"
-import { pathToSearchState, searchStateToUrl } from "../routingHelpers"
+import { CurrentRefinementsConnectorParamsItem } from "instantsearch.js/es/connectors/current-refinements/connectCurrentRefinements"
 
-const searchClient = new TypesenseInstantSearchAdapter({
-  server: getServerConfig(),
-  additionalSearchParameters: {
-    query_by: "number,title,body",
-    exclude_fields: "body"
-  }
-}).searchClient
-
-const extractLastSegmentOfRefinements = (items: any[]) => {
-  return items.map(item => {
-    if (item.label != "topics.lvl1") return item
-    const newRefinements = item.refinements.map(
-      (refinement: { label: string }) => {
-        // Split the label to extract the last part of the hierarchy
-        const lastPartOfLabel = refinement.label.includes(">")
-          ? refinement.label.split(" > ").pop()
-          : refinement.label
-
-        return {
-          ...refinement,
-          // Update label to only show the last part
-          label: lastPartOfLabel
+const extractLastSegmentOfRefinements = (
+  items: CurrentRefinementsConnectorParamsItem[]
+) =>
+  items.map(item =>
+    item.label != "topics.lvl1"
+      ? item
+      : {
+          ...item,
+          label: "Tags",
+          refinements: item.refinements.map(({ label, ...rest }) => ({
+            ...rest,
+            label: label.includes(" > ")
+              ? (label.split(" > ").pop() as string)
+              : label
+          }))
         }
-      }
-    )
-
-    return {
-      ...item,
-      label: "Tags",
-      refinements: newRefinements
-    }
-  })
-}
+  )
 
 export const BillSearch = () => {
-  const items = useBillSort()
-  const initialSortByValue = items[0].value
+  const now = useRef(new Date().getTime())
+  const sortOptions = [
+    {
+      labelKey: "sort_by.most_recent_testimony",
+      value: "bills/sort/latestTestimonyAt:desc"
+    },
+    {
+      labelKey: "sort_by.relevance",
+      value: "bills/sort/_text_match:desc,testimonyCount:desc"
+    },
+    {
+      labelKey: "sort_by.testimony_count",
+      value: "bills/sort/testimonyCount:desc"
+    },
+    {
+      labelKey: "sort_by.cosponsor_count",
+      value: "bills/sort/cosponsorCount:desc"
+    },
+    {
+      labelKey: "sort_by.next_hearing_date",
+      value: "bills/sort/nextHearingAt:asc",
+      configure: {
+        numericRefinements: {
+          nextHearingAt: {
+            ">=": [now.current]
+          } as any
+        }
+      }
+    }
+  ]
   return (
-    <SearchErrorBoundary>
-      <InstantSearch
-        indexName={initialSortByValue}
-        initialUiState={{
-          [initialSortByValue]: {
-            refinementList: { court: [String(currentGeneralCourt)] }
-          }
-        }}
-        searchClient={searchClient}
-        routing={{
-          router: createInstantSearchRouterNext({
-            singletonRouter,
-            routerOptions: {
-              cleanUrlOnDispose: false,
-              createURL: args => searchStateToUrl(args),
-              parseURL: args => pathToSearchState(args)
-            }
-          })
-        }}
-        future={{ preserveSharedStateOnUnmount: true }}
-      >
-        <VirtualFilters type="bill" />
-        <Layout items={items} />
-      </InstantSearch>
-    </SearchErrorBoundary>
-  )
-}
-
-const RefinementRow = styled.div`
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-`
-
-const useSearchStatus = () => {
-  const { results } = useInstantSearch()
-
-  if (!results.query) {
-    return "loading"
-  } else if (results.nbHits === 0) {
-    return "empty"
-  } else {
-    return "results"
-  }
-}
-
-const StyledLoadingContainer = styled(Container)`
-  background-color: white;
-  display: flex;
-  height: 300px;
-  justify-content: center;
-  align-items: center;
-`
-
-const Results = ({
-  status,
-  t
-}: {
-  status: ReturnType<typeof useSearchStatus>
-  t: TFunction
-}) => {
-  const [isLoadingBillDetails, setIsLoadingBillDetails] = useState(false)
-
-  if (isLoadingBillDetails) {
-    return (
-      <StyledLoadingContainer>
-        <Spinner animation="border" className="mx-auto" />
-      </StyledLoadingContainer>
-    )
-  } else if (status === "empty") {
-    return (
-      <NoResults>
-        {t("zero_results")}
-        <br />
-        <b>{t("another_term")}</b>
-      </NoResults>
-    )
-  } else {
-    return (
-      <Hits
-        hitComponent={BillHit}
-        onClick={() => setIsLoadingBillDetails(true)}
-      />
-    )
-  }
-}
-
-const Layout: FC<
-  React.PropsWithChildren<{ items: SortByWithConfigurationItem[] }>
-> = ({ items }) => {
-  const refinements = useBillRefinements()
-  const status = useSearchStatus()
-
-  const { t } = useTranslation("search")
-
-  return (
-    <SearchContainer>
-      <Row>
-        <SearchBox placeholder="Search For Bills" className="mt-2 mb-3" />
-      </Row>
-      <Row>
-        <Col xs={0} lg={3}>
-          {refinements.options}
-        </Col>
-        <Col className="d-flex flex-column">
-          <RefinementRow>
-            <ResultCount className="flex-grow-1 m-1" />
-            <SortBy items={items} />
-            {refinements.show}
-          </RefinementRow>
-          <CurrentRefinements
-            className="mt-2 mb-2"
-            excludedAttributes={["nextHearingAt"]}
-            transformItems={extractLastSegmentOfRefinements}
-          />
-          <Results status={status} t={t} />
-          <Pagination className="mx-auto mt-2 mb-3" />
-        </Col>
-      </Row>
-    </SearchContainer>
+    <SearchPage
+      searchType="bill"
+      hitComponent={BillHit}
+      sortOptions={sortOptions}
+      initialUiState={{
+        [sortOptions[0].value]: {
+          refinementList: { court: [String(currentGeneralCourt)] }
+        }
+      }}
+      searchParameters={{
+        query_by: "number,title,body",
+        exclude_fields: "body"
+      }}
+      currentRefinementsProps={{
+        excludedAttributes: ["nextHearingAt"],
+        transformItems: extractLastSegmentOfRefinements
+      }}
+      filterPanelConfig={{
+        menuProps: { attributes: ["topics.lvl0", "topics.lvl1"] },
+        filters: [
+          {
+            attribute: "court",
+            transformItems: items =>
+              items
+                .map(i => ({
+                  ...i,
+                  label: generalCourts[parseInt(i.value, 10)]?.Name ?? i.label
+                }))
+                .sort((a, b) => Number(b.value) - Number(a.value))
+          },
+          { attribute: "currentCommittee" },
+          { attribute: "city" },
+          { attribute: "primarySponsor" },
+          { attribute: "cosponsors" }
+        ]
+      }}
+    />
   )
 }

@@ -1,4 +1,3 @@
-import { useRefinementList } from "react-instantsearch"
 import { TypesenseInstantsearchAdapterOptions } from "typesense-instantsearch-adapter"
 
 const devConfig = {
@@ -29,30 +28,4 @@ export function getServerConfig(): TypesenseInstantsearchAdapterOptions["server"
   }
 }
 
-function RefinementList({ attribute }: { attribute: string }) {
-  useRefinementList({ attribute, limit: 500 })
-  return null
-}
-
-export function VirtualFilters({ type }: { type: "bill" | "testimony" }) {
-  const refinementAttributes =
-    type === "testimony"
-      ? ["authorDisplayName", "court", "position", "billId", "authorRole"]
-      : [
-          "court",
-          "currentCommittee",
-          "city",
-          "primarySponsor",
-          "cosponsors",
-          "topics.lvl1",
-          "topics.lvl0"
-        ]
-
-  return (
-    <>
-      {refinementAttributes.map(attribute => (
-        <RefinementList key={attribute} attribute={attribute} />
-      ))}
-    </>
-  )
-}
+export const server = getServerConfig()
